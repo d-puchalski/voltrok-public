@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "New Profile",
+    "Projects": [
+      {
+        "Path": "VoltrokWebApp\\VoltrokWebApp.csproj",
+        "Action": "Start",
+        "DebugTarget": "https"
+      },
+      {
+        "Path": "VoltrokWorker\\VoltrokWorker.csproj",
+        "Action": "Start",
+        "DebugTarget": "VoltrokWorker"
+      }
+    ]
+  }
+]

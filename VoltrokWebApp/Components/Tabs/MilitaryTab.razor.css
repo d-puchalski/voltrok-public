@@ -1,0 +1,84 @@
+.recruit-unit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+}
+
+.recruit-unit-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.85rem;
+    padding: 1rem;
+    overflow: hidden;
+}
+
+.recruit-unit-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.recruit-unit-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--medieval-gold);
+    background: color-mix(in srgb, var(--medieval-gold) 16%, transparent);
+}
+
+.recruit-unit-level-badge {
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #2a1a00;
+    background: linear-gradient(180deg, #ffd979, #e3a92c);
+}
+
+.recruit-unit-title {
+    color: var(--medieval-text);
+    font-size: 1rem;
+    font-weight: 700;
+    line-height: 1.35;
+}
+
+.recruit-unit-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.recruit-unit-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+    padding: 0.7rem;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--medieval-ui-surface-strong) 55%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-text) 10%, transparent);
+}
+
+.recruit-unit-stat span {
+    color: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+    font-size: 0.72rem;
+}
+
+.recruit-unit-stat strong {
+    color: var(--medieval-text);
+    font-size: 0.84rem;
+}
+
+.recruit-unit-quantity-row {
+    display: flex;
+    flex-direction: column;
+}
+
+@media (max-width: 768px) {
+    .recruit-unit-grid {
+        grid-template-columns: 1fr;
+    }
+}

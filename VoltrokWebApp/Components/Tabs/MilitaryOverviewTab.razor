@@ -1,0 +1,440 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Enums
+
+@using VoltrokUtils.Engines
+
+@inject TranslationService T
+
+<div class="content-section">
+    <div class="military-overview-section mb-4">
+        <div class="military-overview-section-head">
+            <h6 class="m-0 text-white">@T["tabs.military.overview.offensiveUnits"]</h6>
+        </div>
+
+        <div class="inventory-card-grid military-overview-grid">
+            @foreach (var unit in OffensiveUnits)
+            {
+                var currentLevel = GetCurrentUnitLevel(unit);
+                var nextLevel = currentLevel + 1;
+                var nextUpgradeCost = GetNextUpgradeCost(unit);
+                <div class="building-card-large inventory-resource-card military-overview-card">
+                    <div class="inventory-resource-card-top military-overview-card-top">
+                        <div class="inventory-resource-icon-wrap military-overview-icon-wrap">
+                            <img class="inventory-resource-icon military-overview-icon" src="@GetUnitIconPath(unit)" alt="@GetUnitLabel(unit.Code.ToString())" />
+                        </div>
+                        <div class="military-overview-kicker text-center">@T["tabs.military.overview.offensiveUnit"]</div>
+                    </div>
+
+                    <div class="inventory-resource-title military-overview-title" title="@GetUnitDescription(unit.Code.ToString())">
+                        @GetUnitLabel(unit.Code.ToString())
+                    </div>
+
+                    <div class="inventory-resource-value military-overview-value">
+                        @GetCurrentUnitQuantity(unit).ToString("N0")
+                        @if (GetQueuedUnitQuantity(unit) > 0)
+                        {
+                            <div class="military-overview-queued-label">
+                                @T["tabs.military.overview.inQueue"]: @GetQueuedUnitQuantity(unit).ToString("N0")
+                            </div>
+                        }
+                    </div>
+
+
+                    <div class="inventory-resource-meta-list military-overview-stats">
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.table.attackDefense"]</span>
+                            <strong>@GetAttackDefenseLabel(unit)</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["parts.needs.code.health"]</span>
+                            <strong>@GetCurrentDurability(unit).ToString("0.##")</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.common.currentSpeed"]</span>
+                            <strong>@string.Format(T["tabs.military.speedKmh"], GetCurrentSpeed(unit).ToString("N1"))</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["modals.country.buildings.currentLevel"]</span>
+                            <strong>@GetCurrentUnitLevel(unit)</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.productionTime"]</span>
+                            <strong>@FormatProductionTime(GetCurrentProductionTime(unit))</strong>
+                        </div>
+
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.buyCost"]</span>
+                            <strong>
+                                @FormatMoney(GetTotalRecruitmentCost(unit))
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="military-overview-actions">
+                        <input type="number"
+                               min="1"
+                               step="1"
+                               value="@GetRecruitmentQuantity(unit)"
+                               @oninput="args => RecruitmentQuantityChanged.InvokeAsync((unit.Code, args))"
+                               class="form-control military-action-quantity-input military-overview-quantity-input"
+                               disabled="@IsRecruiting" />
+                        <button type="button"
+                                class="btn btn-primary military-overview-action-btn"
+                                disabled="@(IsRecruiting || !CanAffordRecruitment(unit))"
+                                @onclick="() => RecruitUnit.InvokeAsync(unit)">
+                            @T["tabs.military.overview.buy"]
+                        </button>
+                    </div>
+                    <div class="military-overview-actions-secondary">
+                        <div class="military-overview-upgrade-action-wrap">
+                            <button type="button"
+                                    class="btn btn-outline-light military-overview-action-btn military-overview-upgrade-btn"
+                                    disabled="@(!CanUpgradeUnit(unit))"
+                                    @onclick="() => UpgradeUnit.InvokeAsync(unit)">
+                                @T["modals.country.buildings.upgrade"]
+                            </button>
+
+                            <div class="military-overview-upgrade-tooltip-anchor">
+                                <button type="button"
+                                        class="military-overview-upgrade-info-btn"
+                                        aria-label="@T["tabs.military.overview.nextUpgradeBenefit"]">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <path d="M12 2.75A9.25 9.25 0 1 0 21.25 12 9.26 9.26 0 0 0 12 2.75Zm0 16.5A7.25 7.25 0 1 1 19.25 12 7.26 7.26 0 0 1 12 19.25Zm0-11.75a1.05 1.05 0 1 0 1.05 1.05A1.06 1.06 0 0 0 12 7.5Zm1.05 4.15h-2.1v5.1h2.1Z" />
+                                    </svg>
+                                </button>
+                                <div class="inventory-resource-meta-tooltip military-overview-upgrade-tooltip" role="tooltip">
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.overview.nextUpgradeBenefit"]</span>
+                                        <strong>@string.Format(T["tabs.military.overview.levelUpValue"], nextLevel)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.table.attackDefense"]</span>
+                                        <strong>@GetNextAttackDefenseBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["parts.needs.code.health"]</span>
+                                        <strong>@GetNextDurabilityBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.common.currentSpeed"]</span>
+                                        <strong>@GetNextSpeedBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.overview.productionTime"]</span>
+                                        <strong>@GetNextProductionTimeBenefitLabel(unit)</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="inventory-resource-meta-list military-overview-costs">
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.nextUpgradeCost"]</span>
+                            <strong class="military-overview-resource-cost">
+                                @nextUpgradeCost.ToString("N0")
+                                <img class="military-overview-resource-cost-icon" src="/assets/icons/resources/chips.png" alt="@T["modals.trade.resource.chips"]" />
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="military-overview-section mb-4">
+        <div class="military-overview-section-head">
+            <h6 class="m-0 text-white">@T["tabs.military.overview.defensiveUnits"]</h6>
+            <span class="military-overview-section-subtitle">@T["tabs.military.overview.defensiveSubtitle"]</span>
+        </div>
+
+        <div class="inventory-card-grid military-overview-grid">
+            @foreach (var unit in DefensiveUnits)
+            {
+                var currentLevel = GetCurrentUnitLevel(unit);
+                var nextLevel = currentLevel + 1;
+                var nextUpgradeCost = GetNextUpgradeCost(unit);
+                <div class="building-card-large inventory-resource-card military-overview-card">
+                    <div class="inventory-resource-card-top military-overview-card-top">
+                        <div class="inventory-resource-icon-wrap military-overview-icon-wrap">
+                            <img class="inventory-resource-icon military-overview-icon" src="@GetUnitIconPath(unit)" alt="@GetUnitLabel(unit.Code.ToString())" />
+                        </div>
+                        @if (unit.IsDefensive)
+                        {
+                            <div class="inventory-resource-meta-row text-end">
+                                <strong>@GetDefenseScopeLabel(unit)</strong>
+                            </div>
+                        }
+                    </div>
+
+                    <div class="inventory-resource-title military-overview-title" title="@GetUnitDescription(unit.Code.ToString())">
+                        @GetUnitLabel(unit.Code.ToString())
+                    </div>
+
+                    <div class="inventory-resource-value military-overview-value">
+                        @GetCurrentUnitQuantity(unit).ToString("N0")
+                        @if (GetQueuedUnitQuantity(unit) > 0)
+                        {
+                            <div class="military-overview-queued-label">
+                                @T["tabs.military.overview.inQueue"]: @GetQueuedUnitQuantity(unit).ToString("N0")
+                            </div>
+                        }
+                    </div>
+
+                    <div class="inventory-resource-meta-list military-overview-stats">
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.table.attackDefense"]</span>
+                            <strong>@GetAttackDefenseLabel(unit)</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["parts.needs.code.health"]</span>
+                            <strong>@GetCurrentDurability(unit).ToString("0.##")</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.common.currentSpeed"]</span>
+                            <strong>@string.Format(T["tabs.military.speedKmh"], GetCurrentSpeed(unit).ToString("N1"))</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["modals.country.buildings.currentLevel"]</span>
+                            <strong>@GetCurrentUnitLevel(unit)</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.productionTime"]</span>
+                            <strong>@FormatProductionTime(GetCurrentProductionTime(unit))</strong>
+                        </div>
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.buyCost"]</span>
+                            <strong>
+                                @FormatMoney(GetTotalRecruitmentCost(unit))
+                            </strong>
+                        </div>
+                    </div>
+
+                    <div class="military-overview-actions">
+                        <input type="number"
+                               min="1"
+                               step="1"
+                               value="@GetRecruitmentQuantity(unit)"
+                               @onchange="args => RecruitmentQuantityChanged.InvokeAsync((unit.Code, args))"
+                               class="form-control military-action-quantity-input military-overview-quantity-input"
+                               disabled="@IsRecruiting" />
+                        <button type="button"
+                                class="btn btn-primary military-overview-action-btn"
+                                disabled="@(IsRecruiting || !CanAffordRecruitment(unit))"
+                                @onclick="() => RecruitUnit.InvokeAsync(unit)">
+                            @T["tabs.military.overview.buy"]
+                        </button>
+                    </div>
+                    <div class="military-overview-actions-secondary">
+                        <div class="military-overview-upgrade-action-wrap">
+                            <button type="button"
+                                    class="btn btn-outline-light military-overview-action-btn military-overview-upgrade-btn"
+                                    disabled="@(!CanUpgradeUnit(unit))"
+                                    @onclick="() => UpgradeUnit.InvokeAsync(unit)">
+                                @T["modals.country.buildings.upgrade"]
+                            </button>
+
+                            <div class="military-overview-upgrade-tooltip-anchor">
+                                <button type="button"
+                                        class="military-overview-upgrade-info-btn"
+                                        aria-label="@T["tabs.military.overview.nextUpgradeBenefit"]">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                                        <path d="M12 2.75A9.25 9.25 0 1 0 21.25 12 9.26 9.26 0 0 0 12 2.75Zm0 16.5A7.25 7.25 0 1 1 19.25 12 7.26 7.26 0 0 1 12 19.25Zm0-11.75a1.05 1.05 0 1 0 1.05 1.05A1.06 1.06 0 0 0 12 7.5Zm1.05 4.15h-2.1v5.1h2.1Z" />
+                                    </svg>
+                                </button>
+                                <div class="inventory-resource-meta-tooltip military-overview-upgrade-tooltip" role="tooltip">
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.overview.nextUpgradeBenefit"]</span>
+                                        <strong>@string.Format(T["tabs.military.overview.levelUpValue"], nextLevel)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.table.attackDefense"]</span>
+                                        <strong>@GetNextAttackDefenseBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["parts.needs.code.health"]</span>
+                                        <strong>@GetNextDurabilityBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.common.currentSpeed"]</span>
+                                        <strong>@GetNextSpeedBenefitLabel(unit)</strong>
+                                    </div>
+                                    <div class="inventory-resource-meta-tooltip-row">
+                                        <span>@T["tabs.military.overview.productionTime"]</span>
+                                        <strong>@GetNextProductionTimeBenefitLabel(unit)</strong>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="inventory-resource-meta-list military-overview-costs">
+                        <div class="inventory-resource-meta-row">
+                            <span>@T["tabs.military.overview.nextUpgradeCost"]</span>
+                            <strong class="military-overview-resource-cost">
+                                @nextUpgradeCost.ToString("N0")
+                                <img class="military-overview-resource-cost-icon" src="/assets/icons/resources/chips.png" alt="@T["modals.trade.resource.chips"]" />
+                            </strong>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public required Player? Player { get; set; }
+    [Parameter] public required IEnumerable<PlayerMilitaryProduction> ActiveRecruitmentOrders { get; set; }
+    [Parameter] public required bool IsRecruiting { get; set; }
+    [Parameter] public required Func<string?, string> GetUnitDescription { get; set; }
+    [Parameter] public required Func<string?, string> GetUnitLabel { get; set; }
+    [Parameter] public required Func<MilitaryUnit, decimal> GetRecruitmentCost { get; set; }
+    [Parameter] public required Func<MilitaryUnit, bool> CanUpgradeUnit { get; set; }
+    [Parameter] public required Func<MilitaryUnit, int> GetRecruitmentQuantity { get; set; }
+    [Parameter] public required Func<MilitaryUnit, bool> CanAffordRecruitment { get; set; }
+    [Parameter] public required decimal UnitProductionSpeedMultiplier { get; set; }
+    [Parameter] public required Func<PlayerMilitaryProduction, string> GetRecruitmentEta { get; set; }
+    [Parameter] public required EventCallback<MilitaryUnit> RecruitUnit { get; set; }
+    [Parameter] public required EventCallback<MilitaryUnit> UpgradeUnit { get; set; }
+    [Parameter] public required EventCallback<(MilitaryUnitsEnum UnitCode, ChangeEventArgs Args)> RecruitmentQuantityChanged { get; set; }
+    [Parameter] public required EventCallback<PlayerMilitaryProduction> CancelRecruitment { get; set; }
+
+    private IEnumerable<MilitaryUnit> OffensiveUnits => MilitaryUnitEngine.MilitaryUnitsAllData.Where(unit => !unit.IsDefensive);
+    private IEnumerable<MilitaryUnit> DefensiveUnits => MilitaryUnitEngine.MilitaryUnitsAllData.Where(unit => unit.IsDefensive);
+    private IEnumerable<PlayerMilitaryProduction> GetUnitQueueOrders(MilitaryUnit unit)
+        => ActiveRecruitmentOrders
+            .Where(order => string.Equals(order.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(order => order.CreatedAt);
+
+    private int GetQueuedUnitQuantity(MilitaryUnit unit)
+        => GetUnitQueueOrders(unit).Sum(GetRemainingQueuedQuantity);
+
+    private static int GetRemainingQueuedQuantity(PlayerMilitaryProduction order)
+        => Math.Max(0, order.Quantity - order.ProducedQuantity);
+
+    private int GetCurrentUnitQuantity(MilitaryUnit unit)
+        => Player?.PlayerMilitaryUnits?
+            .Where(entry => string.Equals(entry.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Sum(entry => Math.Max(0, entry.Quantity)) ?? 0;
+
+    private int GetCurrentUnitLevel(MilitaryUnit unit)
+        => Player?.PlayerMilitaryUnits?
+            .Where(entry => string.Equals(entry.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Select(entry => Math.Max(1, entry.Level))
+            .DefaultIfEmpty(1)
+            .Max() ?? 1;
+
+    private decimal GetNextUpgradeCost(MilitaryUnit unit)
+        => unit.GetUpgradeCost(GetCurrentUnitLevel(unit) + 1);
+
+    private decimal GetTotalRecruitmentCost(MilitaryUnit unit)
+        => GetRecruitmentCost(unit) * Math.Max(1, GetRecruitmentQuantity(unit));
+
+    private string GetAttackDefenseLabel(MilitaryUnit unit)
+    {
+        var level = GetCurrentUnitLevel(unit);
+        return $"{unit.GetOffensivePoints(level):0.##} / {unit.GetDefensivePoints(level):0.##} / {unit.GetSiegePoints(level):0.##}";
+    }
+
+    private string GetNextAttackDefenseBenefitLabel(MilitaryUnit unit)
+    {
+        var currentLevel = GetCurrentUnitLevel(unit);
+        var nextLevel = currentLevel + 1;
+        var currentAttack = unit.GetOffensivePoints(currentLevel);
+        var nextAttack = unit.GetOffensivePoints(nextLevel);
+        var currentDefense = unit.GetDefensivePoints(currentLevel);
+        var nextDefense = unit.GetDefensivePoints(nextLevel);
+        var currentSiege = unit.GetSiegePoints(currentLevel);
+        var nextSiege = unit.GetSiegePoints(nextLevel);
+        return $"+{Math.Max(0m, nextAttack - currentAttack):0.##} / +{Math.Max(0m, nextDefense - currentDefense):0.##} / +{Math.Max(0m, nextSiege - currentSiege):0.##}";
+    }
+
+    private string GetNextSpeedBenefitLabel(MilitaryUnit unit)
+    {
+        var currentLevel = GetCurrentUnitLevel(unit);
+        var nextLevel = currentLevel + 1;
+        var speedGain = Math.Max(0m, unit.GetSpeed(nextLevel) - unit.GetSpeed(currentLevel));
+        return $"+{speedGain:0.##} km/h";
+    }
+
+    private decimal GetCurrentDurability(MilitaryUnit unit)
+        => unit.GetDurability(GetCurrentUnitLevel(unit));
+
+    private string GetNextDurabilityBenefitLabel(MilitaryUnit unit)
+    {
+        var currentLevel = GetCurrentUnitLevel(unit);
+        var nextLevel = currentLevel + 1;
+        var durabilityGain = Math.Max(0m, unit.GetDurability(nextLevel) - unit.GetDurability(currentLevel));
+        return $"+{durabilityGain:0.##}";
+    }
+
+    private string GetNextProductionTimeBenefitLabel(MilitaryUnit unit)
+    {
+        var currentLevel = GetCurrentUnitLevel(unit);
+        var nextLevel = currentLevel + 1;
+        var currentSeconds = GetAdjustedProductionTime(unit.GetProductionTime(currentLevel));
+        var nextSeconds = GetAdjustedProductionTime(unit.GetProductionTime(nextLevel));
+        var deltaSeconds = nextSeconds - currentSeconds;
+        return deltaSeconds <= 0
+            ? $"-{FormatDurationCompact(Math.Abs(deltaSeconds))}"
+            : $"+{FormatDurationCompact(deltaSeconds)}";
+    }
+
+    private string GetDefenseScopeLabel(MilitaryUnit unit)
+        => unit.DefensiveAgainst == null
+            ? T["modals.militaryAction.defenseScope.all"]
+            : string.Format(T["modals.militaryAction.defenseScope.onlyVs"], GetUnitLabel(unit.DefensiveAgainst.Value.ToString()));
+
+    private decimal GetCurrentSpeed(MilitaryUnit unit)
+        => unit.GetSpeed(GetCurrentUnitLevel(unit));
+
+    private int GetCurrentProductionTime(MilitaryUnit unit)
+        => GetAdjustedProductionTime(unit.GetProductionTime(GetCurrentUnitLevel(unit)));
+
+    private int GetAdjustedProductionTime(int baseSeconds)
+        => Math.Max(1, (int)Math.Ceiling(baseSeconds / Math.Max(1m, UnitProductionSpeedMultiplier)));
+
+    private static string GetUnitIconPath(MilitaryUnit unit)
+        => $"/assets/icons/military_units/{unit.Code}.png";
+
+    private static string GetUnitIconPath(string? unitCode)
+        => string.IsNullOrWhiteSpace(unitCode)
+            ? "/assets/icons/general/points.png"
+            : $"/assets/icons/military_units/{unitCode.Trim()}.png";
+
+    private static string FormatProductionTime(int totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(1, totalSeconds));
+        if (duration.TotalHours >= 1)
+        {
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+        }
+
+        if (duration.TotalMinutes >= 1)
+        {
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        }
+
+        return $"{duration.Seconds}s";
+    }
+
+    private static string FormatDurationCompact(int totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        if (duration.TotalHours >= 1)
+        {
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+        }
+
+        if (duration.TotalMinutes >= 1)
+        {
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        }
+
+        return $"{duration.Seconds}s";
+    }
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N0}";
+}

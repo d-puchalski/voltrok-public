@@ -1,0 +1,142 @@
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Enums
+
+@inject PlayersService PlayersService
+@inherits AppStateComponentBase
+
+
+<div class="needs-card">
+    <div class="glass-panel p-3 mb-4 rounded-4 @(_isMinimized ? "needs-card-minimized" : string.Empty)">
+        <div class="needs-card-header mb-2 needs-card-drag-handle">
+            <div class="needs-card-header-actions">
+                <SidebarButtons Inline="true" />
+                <button type="button" class="needs-toggle-btn" @onclick="ToggleMinimized" title="@(_isMinimized ? T["parts.needs.expand"] : T["parts.needs.minimize"])">
+                    <iconify-icon icon="@(_isMinimized ? "solar:maximize-square-bold" : "solar:minimize-square-bold")" width="16" height="16"></iconify-icon>
+                </button>
+            </div>
+        </div>
+
+        @if (!_isMinimized)
+        {
+            <div class="row row-cols-2 g-2">
+                @foreach (var stat in PlayerStats)
+                {
+                    <div class="col d-flex flex-column gap-1">
+                        <div class="d-flex align-items-center justify-content-between text-muted mb-1 gap-2 label-small">
+                            <div class="d-flex align-items-center gap-2">
+                                @if (!string.IsNullOrWhiteSpace(stat.IconPath))
+                                {
+                                    <img class="needs-icon-image" src="@stat.IconPath" alt="@stat.Label" />
+                                }
+                                else {if (!string.IsNullOrWhiteSpace(stat.Icon))
+                                    {
+                                        <iconify-icon class="needs-icon" icon="@stat.Icon" width="18" height="18"></iconify-icon>
+                                    }
+                                }
+                                <span class="text-white">@stat.Label</span>
+                            </div>
+                            <span class="text-white ms-2">@stat.Value</span>
+                        </div>
+                        <div class="progress needs-progress">
+                            <div class="progress-bar needs-progress-bar" style="width: @stat.WidthPercent%"></div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="needs-minimized-summary">
+                <div class="d-flex align-items-center justify-content-between mb-1">
+                    <span class="small text-muted">@T["modals.player.detail.money"]</span>
+                    <span class="text-white fw-semibold">@MinimizedPrimaryValue</span>
+                </div>
+                <div class="progress needs-progress">
+                    <div class="progress-bar needs-progress-bar" style="width: @MinimizedPrimaryWidth%"></div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(30);
+    private bool _isMinimized = true;
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
+    private Task? _refreshTask;
+    private IReadOnlyList<PlayerStatItem> PlayerStats
+        => [
+            new(T["modals.player.detail.money"], FormatMoney(AppState.MyPlayer.Money), NormalizeMetric(AppState.MyPlayer.Money, 1000000m), "/assets/icons/resources/money.png"),
+            new(T["modals.trade.resource.oil"], AppState.MyPlayer.Oil.ToString("N0"), NormalizeMetric(AppState.MyPlayer.Oil, 10000m), "/assets/icons/resources/oil.png"),
+            new(T["modals.trade.resource.uranium"], AppState.MyPlayer.Uranium.ToString("N0"), NormalizeMetric(AppState.MyPlayer.Uranium, 10000m), "/assets/icons/resources/uranium.png"),
+            new(T["modals.trade.resource.chips"], AppState.MyPlayer.Chips.ToString("N0"), NormalizeMetric(AppState.MyPlayer.Chips, 10000m), "/assets/icons/resources/chips.png"),
+        ];
+    private string MinimizedPrimaryValue => FormatMoney(AppState.MyPlayer.Money);
+    private decimal MinimizedPrimaryWidth => NormalizeMetric(AppState.MyPlayer.Score, 10000m);
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsureRefreshLoopAsync();
+    }
+
+    private async Task EnsureRefreshLoopAsync()
+    {
+        var playerId = AppState.MyPlayer.PlayersId;
+
+        StopRefreshLoop();
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(RefreshInterval);
+        _refreshTask = RefreshLoopAsync(playerId, _refreshCts.Token);
+        await Task.CompletedTask;
+    }
+
+    private async Task RefreshLoopAsync(Guid playerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (_refreshTimer != null && await _refreshTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                var refreshedPlayer = await PlayersService.GetPlayerForTab(playerId, PlayerOverviewTabEnum.Overview);
+                if (refreshedPlayer == null)
+                {
+                    continue;
+                }
+
+                AppState.SetMyPlayer(refreshedPlayer);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Serilog.Log.Debug("NeedsCard refresh loop cancelled for player {PlayerId}.", playerId);
+        }
+    }
+
+    private void StopRefreshLoop()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = null;
+        _refreshTimer?.Dispose();
+        _refreshTimer = null;
+        _refreshTask = null;
+    }
+
+    private void ToggleMinimized()
+    {
+        _isMinimized = !_isMinimized;
+    }
+
+    private static decimal NormalizeMetric(decimal value, decimal targetMax)
+        => decimal.Clamp(targetMax <= 0m ? 0m : value / targetMax * 100m, 0m, 100m);
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N0}";
+
+    private sealed record PlayerStatItem(string Label, string Value, decimal WidthPercent, string? IconPath = null, string? Icon = null);
+
+    public new void Dispose()
+    {
+        StopRefreshLoop();
+        base.Dispose();
+    }
+}

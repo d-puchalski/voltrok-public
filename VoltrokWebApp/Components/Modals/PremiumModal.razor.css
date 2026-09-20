@@ -1,0 +1,491 @@
+.premium-dialog {
+    width: min(1100px, calc(100vw - 1.5rem));
+    max-width: 1100px;
+    max-height: min(calc(100vh - 1.5rem), 960px);
+}
+
+.premium-shell {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 22%, var(--medieval-border));
+    background:
+        radial-gradient(circle at top center, color-mix(in srgb, var(--medieval-gold) 14%, transparent), transparent 36%),
+        radial-gradient(circle at bottom left, color-mix(in srgb, var(--medieval-action-bg) 22%, transparent), transparent 42%),
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-card) 96%, black 4%), color-mix(in srgb, var(--medieval-panel-strong) 98%, black 2%));
+    box-shadow: 0 30px 80px var(--medieval-shadow);
+    overflow: hidden;
+}
+
+.premium-shell .dialog-body-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.premium-content {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.premium-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.85rem;
+}
+
+.premium-header-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.premium-header-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.premium-header-row .premium-title {
+    flex: 1 1 auto;
+}
+
+.premium-eyebrow {
+    margin: 0 0 0.25rem;
+    color: color-mix(in srgb, var(--medieval-gold) 88%, white 12%);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+}
+
+.premium-title {
+    margin: 0;
+    color: var(--medieval-text);
+    font-size: clamp(1.65rem, 3vw, 2.4rem);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.04em;
+}
+
+.premium-subtitle {
+    margin: 0.4rem 0 0;
+    max-width: 46ch;
+    color: color-mix(in srgb, var(--medieval-text) 72%, transparent);
+    font-size: 0.9rem;
+    line-height: 1.45;
+}
+
+.premium-close {
+    flex: 0 0 auto;
+}
+
+.premium-status-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    padding: 0.45rem 0.75rem;
+    width: fit-content;
+    white-space: nowrap;
+    align-self: center;
+    margin: 0.15rem auto 0;
+    font-size: 0.8rem;
+}
+
+.premium-status-row {
+    display: flex;
+    justify-content: center;
+}
+
+.premium-status-pill.active {
+    color: var(--medieval-text) !important;
+    border-color: color-mix(in srgb, #8be28b 56%, var(--medieval-border)) !important;
+    background: color-mix(in srgb, #8be28b 24%, var(--medieval-panel)) !important;
+    box-shadow: 0 0 14px color-mix(in srgb, #8be28b 32%, transparent);
+}
+
+.premium-status-pill.active::after {
+    background: linear-gradient(
+        color-mix(in srgb, #8be28b 18%, var(--medieval-card)),
+        color-mix(in srgb, #8be28b 18%, var(--medieval-card))
+    ), var(--medieval-bg) !important;
+}
+
+.premium-status-pill.active:hover::after {
+    background: linear-gradient(
+        color-mix(in srgb, #8be28b 24%, var(--medieval-card)),
+        color-mix(in srgb, #8be28b 24%, var(--medieval-card))
+    ), var(--medieval-bg) !important;
+}
+
+.premium-status-pill.inactive {
+    color: #ffd8d8;
+}
+
+.premium-status-pill-label {
+    color: inherit;
+    font-size: 0.72rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.premium-status-pill-date {
+    color: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.premium-status-pill.active .premium-status-pill-label,
+.premium-status-pill.active .premium-status-pill-date {
+    color: var(--medieval-text) !important;
+}
+
+.premium-empty-state.building-card-large,
+.premium-kind-card.building-card-large,
+.premium-selection-card.building-card-large {
+    padding: 1rem;
+}
+
+.premium-selection-card.building-card-large {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.premium-kind-card.building-card-large {
+    padding: 0.95rem;
+}
+
+.premium-picker {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.9rem;
+}
+
+.premium-kind-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.85rem;
+    margin-bottom: 0.85rem;
+}
+
+.premium-kind-label,
+.premium-selection-kicker {
+    color: color-mix(in srgb, var(--medieval-text) 55%, transparent);
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+}
+
+.premium-kind-title {
+    margin: 0.2rem 0 0;
+    color: var(--medieval-text);
+    font-size: 1.15rem;
+    font-weight: 900;
+}
+
+.premium-kind-badge {
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 30%, var(--medieval-border));
+    background: color-mix(in srgb, var(--medieval-gold) 10%, transparent);
+    color: color-mix(in srgb, var(--medieval-gold) 88%, white 12%);
+    font-size: 0.72rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+}
+
+.premium-plan-grid {
+    row-gap: 0.65rem;
+}
+
+.premium-plan-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    width: 100%;
+    padding: 0.95rem;
+    color: var(--medieval-text);
+    text-align: left;
+    transition: transform 0.18s ease;
+    justify-content: flex-start;
+}
+
+.premium-plan-card:hover:not(:disabled) {
+    transform: translateY(-2px);
+}
+
+.premium-plan-card:disabled {
+    opacity: 0.56;
+    cursor: not-allowed;
+}
+
+.premium-plan-card.selected {
+    filter: brightness(1.04);
+}
+
+.premium-plan-card.owned {
+    opacity: 0.92;
+}
+
+.premium-plan-card.free {
+    opacity: 1;
+}
+
+.premium-plan-icon {
+    width: 42px;
+    height: 42px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 22%, var(--medieval-border));
+    background: color-mix(in srgb, var(--medieval-gold) 10%, transparent);
+    color: color-mix(in srgb, var(--medieval-gold) 88%, white 12%);
+    font-size: 1.35rem;
+}
+
+.premium-plan-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.premium-plan-name {
+    color: var(--medieval-text);
+    font-size: 0.98rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+.premium-plan-price {
+    color: color-mix(in srgb, var(--medieval-gold) 90%, white 10%);
+    font-size: 1.2rem;
+    font-weight: 900;
+    line-height: 1.1;
+}
+
+.premium-plan-note {
+    color: color-mix(in srgb, var(--medieval-text) 64%, transparent);
+    font-size: 0.8rem;
+}
+
+.premium-plan-state {
+    flex: 0 0 auto;
+    padding: 0.32rem 0.62rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-text) 10%, transparent);
+    color: var(--medieval-text);
+    font-size: 0.7rem;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.premium-selection-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.premium-selection-copy {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.premium-selection-title {
+    margin: 0.35rem 0 0;
+    color: var(--medieval-text);
+    font-size: 1.15rem;
+    font-weight: 900;
+}
+
+.premium-selection-desc {
+    margin: 0.45rem 0 0;
+    color: color-mix(in srgb, var(--medieval-text) 72%, transparent);
+    line-height: 1.45;
+}
+
+.premium-selection-feature-grid {
+    margin-top: 0.15rem;
+}
+
+.premium-selection-feature {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.85rem;
+    height: 100%;
+    justify-content: flex-start;
+}
+
+.premium-selection-feature-icon {
+    width: 30px;
+    height: 30px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    background: color-mix(in srgb, #8be28b 15%, transparent);
+    color: color-mix(in srgb, #8be28b 90%, white 10%);
+    font-size: 1rem;
+    line-height: 1;
+}
+
+.premium-selection-feature-copy {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.premium-selection-feature-title {
+    color: var(--medieval-text);
+    font-size: 0.92rem;
+    font-weight: 900;
+    line-height: 1.2;
+}
+
+.premium-selection-feature-desc {
+    color: color-mix(in srgb, var(--medieval-text) 68%, transparent);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+.premium-selection-action {
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.65rem;
+}
+
+.premium-selection-price-label {
+    color: color-mix(in srgb, var(--medieval-gold) 90%, white 10%);
+    font-size: 1.35rem;
+    font-weight: 900;
+    line-height: 1;
+    text-align: right;
+}
+
+.premium-selection-button {
+    min-width: 260px;
+    padding: 0.95rem 1.4rem;
+    font-size: 1rem;
+    font-weight: 900;
+    letter-spacing: 0.11em;
+    justify-content: center;
+    gap: 0.6rem;
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.18);
+}
+
+.premium-selection-button--cta {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--medieval-gold) 22%, var(--medieval-action-bg)), var(--medieval-action-bg));
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 62%, var(--medieval-border));
+    color: color-mix(in srgb, var(--medieval-gold) 92%, white 8%);
+    text-shadow: 0 0 10px color-mix(in srgb, var(--medieval-gold) 45%, transparent);
+}
+
+.premium-selection-button--cta:hover:not(:disabled) {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--medieval-gold) 34%, var(--medieval-action-bg)), color-mix(in srgb, var(--medieval-action-bg) 90%, black 10%));
+    color: var(--medieval-text);
+    box-shadow: 0 0 18px color-mix(in srgb, var(--medieval-gold) 38%, transparent), 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+
+@media (max-width: 991.98px) {
+    .premium-picker,
+    .premium-selection-card {
+        grid-template-columns: 1fr;
+    }
+
+    .premium-selection-action {
+        min-width: 0;
+        align-items: stretch;
+    }
+
+    .premium-selection-button {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .premium-dialog {
+        width: calc(100vw - 1rem);
+        max-width: calc(100vw - 1rem);
+        max-height: calc(100vh - 1rem);
+        border-radius: 18px;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .premium-content {
+        padding: 0.8rem;
+    }
+
+    .premium-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .premium-header-row {
+        align-items: center;
+    }
+
+    .premium-close {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .premium-status-pill {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .premium-plan-card {
+        padding: 0.85rem;
+    }
+
+    .premium-plan-state {
+        display: none;
+    }
+
+    .premium-selection-card {
+        padding: 0.9rem;
+    }
+
+    .premium-selection-top {
+        flex-direction: column;
+    }
+
+    .premium-selection-price-label {
+        text-align: left;
+    }
+
+    .premium-selection-action {
+        width: 100%;
+    }
+
+    .premium-selection-button {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .premium-selection-feature {
+        padding: 0.75rem;
+    }
+}

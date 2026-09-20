@@ -1,0 +1,179 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Translations
+
+@inject TranslationService T
+
+<div class="glass-card p-3 mb-4">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label text-muted small">@T["tabs.military.mission"]</label>
+            <input class="form-control bg-dark border-white-10 text-white" value="@CurrentMissionLabel" disabled />
+        </div>
+        <div class="col-md-4">
+            <label class="form-label text-muted small">@T["modals.player.detail.country"]</label>
+            <select class="form-select bg-dark border-white-10 text-white" value="@SelectedCountryId" @onchange="CountryChanged">
+                <option value="">@T["tabs.common.selectTargetCountry"]</option>
+                @foreach (var country in AvailableCountries)
+                {
+                    <option value="@country.CountryId">@country.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label text-muted small">@T["modals.player.detail.player"]</label>
+            <select class="form-select bg-dark border-white-10 text-white" value="@SelectedDestinationId" @onchange="DestinationChanged" disabled="@(!CanSelectDestination)">
+                <option value="">@T["tabs.military.selectDestination"]</option>
+                @foreach (var destination in AvailablePlayers)
+                {
+                    <option value="@destination.PlayersId">@destination.Name</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label text-muted small">@T["tabs.military.unitLevel"]</label>
+            <select class="form-select bg-dark border-white-10 text-white" value="@SelectedUnitLevel" @onchange="UnitLevelChanged">
+                @foreach (var entry in PlayerArmyEntries.OrderBy(entry => entry.Level))
+                {
+                    <option value="@entry.Level">L@entry.Level (@entry.Quantity)</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label text-muted small">@T["tabs.trade.quantity"]</label>
+            <input type="number" class="form-control bg-dark border-white-10 text-white" min="1" value="@UnitQuantity" @oninput="UnitQuantityChanged" />
+        </div>
+        <div class="col-md-12">
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="autoReturnSwitchAid" checked="@AutoReturnAfterBattle" @onchange="AutoReturnChanged" />
+                <label class="form-check-label text-muted small" for="autoReturnSwitchAid">@T["tabs.military.autoReturnAfterBattle"]</label>
+            </div>
+        </div>
+        <div class="col-12">
+            <button class="btn btn-outline-light w-100" @onclick="DispatchMission" disabled="@(!CanDispatchUnits)">
+                @T["tabs.military.dispatchUnits"]
+            </button>
+        </div>
+    </div>
+    @if (!string.IsNullOrWhiteSpace(DispatchError))
+    {
+        <div class="small text-danger mt-2">@DispatchError</div>
+    }
+    @if (!string.IsNullOrWhiteSpace(DispatchSuccess))
+    {
+        <div class="small text-success mt-2">@DispatchSuccess</div>
+    }
+</div>
+
+<div class="glass-card p-4 mb-4">
+    <h6 class="text-white mb-3">@T["tabs.military.activeDeployments"]</h6>
+    @if (VisibleDeploymentsList.Count > 0)
+    {
+        @if (VisibleDeploymentsTotalPages > 1)
+        {
+            <div class="trade-pager mb-3">
+                <div class="trade-pager-summary small text-muted">
+                    @VisibleDeploymentsPageStartItem-@VisibleDeploymentsPageEndItem / @VisibleDeploymentsList.Count
+                </div>
+                <div class="trade-pager-controls">
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage <= 1)" @onclick="FirstVisibleDeploymentsPage">«</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage <= 1)" @onclick="PrevVisibleDeploymentsPage">‹</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage >= VisibleDeploymentsTotalPages)" @onclick="NextVisibleDeploymentsPage">›</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage >= VisibleDeploymentsTotalPages)" @onclick="LastVisibleDeploymentsPage">»</button>
+                </div>
+            </div>
+        }
+        @foreach (var transport in PagedVisibleDeploymentsList)
+        {
+            <div class="border border-white-10 rounded p-3 mb-2" @key="transport.PlayerMilitaryTransportsId">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="small text-muted">@GetMissionLabel(transport.MissionType)</span>
+                    <span class="badge bg-dark border border-white-10">@GetTransportStatusLabel(transport.Status)</span>
+                </div>
+                <div class="small text-muted mb-1">@T["tabs.transports.to"]: @transport.PlayerTo?.Name</div>
+                <div class="small text-muted mb-1">@T["tabs.military.units"]: @string.Join(", ", transport.PlayerMilitaryTransportUnits.Where(u => u.Quantity > 0).Select(u => $"L{u.Level} x{u.Quantity}"))</div>
+                <div class="small text-muted mb-1">@T["tabs.military.autoReturn"]: @(transport.AutoReturnAfterBattle ? T["tabs.military.autoReturnOn"] : T["tabs.military.autoReturnOff"])</div>
+                <div class="small text-muted d-flex align-items-center gap-2 mb-2">
+                    <iconify-icon icon="solar:clock-circle-bold" class="text-info"></iconify-icon>
+                    <span>@T["tabs.military.remaining"]: @GetTimeRemainingLabel(transport)</span>
+                </div>
+                <div class="mb-2">
+                    <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+                        <span>@T["tabs.military.attackProgress"]</span>
+                        <span>@GetDeploymentProgressPercent(transport)%</span>
+                    </div>
+                    <div class="progress bg-dark border border-white-10" style="height: 10px;">
+                        <div class="progress-bar bg-info" role="progressbar" style="width: @($"{GetDeploymentProgressPercent(transport)}%");"></div>
+                    </div>
+                </div>
+                <button class="btn btn-sm btn-outline-info me-2"
+                        @onclick="() => ToggleAutoReturn.InvokeAsync(transport)"
+                        disabled="@IsUpdatingAutoReturn(transport.PlayerMilitaryTransportsId)">
+                    @if (IsUpdatingAutoReturn(transport.PlayerMilitaryTransportsId))
+                    {
+                        <span>@T["tabs.military.updating"]</span>
+                    }
+                    else
+                    {
+                        <span>@(transport.AutoReturnAfterBattle ? T["tabs.military.disableAutoReturn"] : T["tabs.military.enableAutoReturn"])</span>
+                    }
+                </button>
+            </div>
+        }
+        @if (VisibleDeploymentsTotalPages > 1)
+        {
+            <div class="trade-pager mt-3">
+                <div class="trade-pager-summary small text-muted">
+                    @VisibleDeploymentsPageStartItem-@VisibleDeploymentsPageEndItem / @VisibleDeploymentsList.Count
+                </div>
+                <div class="trade-pager-controls">
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage <= 1)" @onclick="FirstVisibleDeploymentsPage">«</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage <= 1)" @onclick="PrevVisibleDeploymentsPage">‹</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage >= VisibleDeploymentsTotalPages)" @onclick="NextVisibleDeploymentsPage">›</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(VisibleDeploymentsPage >= VisibleDeploymentsTotalPages)" @onclick="LastVisibleDeploymentsPage">»</button>
+                </div>
+            </div>
+        }
+    }
+    else
+    {
+        <div class="small text-muted">@T["tabs.military.noActiveDeployments"]</div>
+    }
+</div>
+
+@code {
+    [Parameter] public required IEnumerable<CountryOption> AvailableCountries { get; set; }
+    [Parameter] public required IEnumerable<Player> AvailablePlayers { get; set; }
+    [Parameter] public required IEnumerable<PlayerMilitaryUnit> PlayerArmyEntries { get; set; }
+    [Parameter] public required Guid? SelectedCountryId { get; set; }
+    [Parameter] public required Guid? SelectedDestinationId { get; set; }
+    [Parameter] public required int SelectedUnitLevel { get; set; }
+    [Parameter] public required int UnitQuantity { get; set; }
+    [Parameter] public required bool AutoReturnAfterBattle { get; set; }
+    [Parameter] public required bool CanSelectDestination { get; set; }
+    [Parameter] public required bool CanDispatchUnits { get; set; }
+    [Parameter] public required string CurrentMissionLabel { get; set; }
+    [Parameter] public string? DispatchError { get; set; }
+    [Parameter] public string? DispatchSuccess { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> VisibleDeploymentsList { get; set; }
+    [Parameter] public required int VisibleDeploymentsPage { get; set; }
+    [Parameter] public required int VisibleDeploymentsTotalPages { get; set; }
+    [Parameter] public required int VisibleDeploymentsPageStartItem { get; set; }
+    [Parameter] public required int VisibleDeploymentsPageEndItem { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> PagedVisibleDeploymentsList { get; set; }
+    [Parameter] public required Func<string?, string> GetTransportStatusLabel { get; set; }
+    [Parameter] public required Func<string?, string> GetMissionLabel { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, string> GetTimeRemainingLabel { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, int> GetDeploymentProgressPercent { get; set; }
+    [Parameter] public required Func<Guid?, bool> IsUpdatingAutoReturn { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> CountryChanged { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> DestinationChanged { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> UnitLevelChanged { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> UnitQuantityChanged { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> AutoReturnChanged { get; set; }
+    [Parameter] public required EventCallback DispatchMission { get; set; }
+    [Parameter] public required EventCallback FirstVisibleDeploymentsPage { get; set; }
+    [Parameter] public required EventCallback PrevVisibleDeploymentsPage { get; set; }
+    [Parameter] public required EventCallback NextVisibleDeploymentsPage { get; set; }
+    [Parameter] public required EventCallback LastVisibleDeploymentsPage { get; set; }
+    [Parameter] public required EventCallback<PlayerMilitaryTransport> ToggleAutoReturn { get; set; }
+}

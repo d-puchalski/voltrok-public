@@ -1,0 +1,484 @@
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject CountriesService CountriesService
+@inject PlayersService PlayersService
+@inject IJSRuntime JsRuntime
+@using Serilog
+@using System.ComponentModel.DataAnnotations
+@using VoltrokEF
+@using VoltrokServices.Services.Auth
+@using VoltrokServices.Services.Countries
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Enums
+@inherits AppStateComponentBase
+
+@if (AppState.ActiveModal == ModalTypesEnum.Register)
+{
+    <div class="modal-overlay auth-modal-overlay" @onclick:stopPropagation="true">
+        <div class="modal-content glass-panel auth-dialog medieval-auth" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <div class="d-flex align-items-center">
+                  
+                    <div>
+                        <h4 class="m-0 text-white fw-bold">@T["auth.register.foundingCharter"]</h4>
+                        <small class="text-muted">@T["auth.register.oathOfSettlement"]</small>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+            </div>
+
+            <div class="dialog-body-container container-fluid p-0">
+                <div class="row g-0 flex-fill auth-body-grid">
+                    <div class="col-12 main-content-panel">
+                    <div class="auth-form-container">
+                        <div class="auth-form-v2 fadeIn">
+                            <div class="wizard-header mb-4">
+                                <div class="wizard-steps mt-3">
+                                    @for (var step = 1; step <= TotalRegisterSteps; step++)
+                                    {
+                                        <div class="wizard-step @GetWizardStepClass(step)">@step</div>
+                                        @if (step < TotalRegisterSteps)
+                                        {
+                                            <div class="wizard-line"></div>
+                                        }
+                                    }
+                                </div>
+                            </div>
+
+                            <EditForm Model="@_registerUser" OnValidSubmit="@HandleRegister" class="register-form-layout">
+                                <DataAnnotationsValidator />
+                                <div class="register-form-body p-2">
+                                    @if (_registerStep == 1)
+                                    {
+                                        <div id="regStep1Anchor">
+                                            <div class="form-floating mb-4">
+                                                <input @bind="_registerPlayer.Name" @bind:event="oninput" class="form-control bg-dark border-white-10 text-white" id="regPlayerName" placeholder="@T["auth.register.playerName"]" disabled="@_loading" />
+                                                <label for="regPlayerName" class="text-muted">@T["auth.register.playerName"]</label>
+                                            </div>
+                                        </div>
+                                    }
+                                    else if (_registerStep == 2)
+                                    {
+                                        <div id="regStep2Anchor">
+                                            <div class="mb-3">
+                                                <label class="text-muted small mb-2">@T["auth.register.selectCountry"]</label>
+                                                <div class="avatar-selector d-flex gap-2 flex-wrap">
+                                                    @foreach (var country in _countries)
+                                                    {
+                                                        <button type="button" class="avatar-option @(_selectedCountryDetails?.CountriesId == country.CountriesId ? "selected" : "")" @onclick="() => SelectCountry(country)">
+                                                            <img src="@GetCountryFlagUrl(country)" width="64" height="64" alt="@country.Name" title="@country.Name" />
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </div>
+
+                                            @if (_selectedCountryDetails != null)
+                                            {
+                                                <div class="region-preview glass-panel p-3 rounded-3">
+                                                    <div class="d-flex align-items-start gap-3">
+                                                        <img class="region-flag" src="@GetCountryFlagUrl(_selectedCountryDetails)" alt="@_selectedCountryDetails.Name" />
+                                                        <div>
+                                                            <div class="text-white fw-bold">@_selectedCountryDetails.Name</div>
+                                                            <div class="text-muted small">ISO: @_selectedCountryDetails.IsoCode2</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else if (_registerStep == 3)
+                                    {
+                                        <div id="regStep3Anchor">
+                                            <div class="mb-4">
+                                                <label class="text-muted small mb-2">@T["auth.register.chooseAvatar"]</label>
+                                                <div class="avatar-selector d-flex gap-2 flex-wrap">
+                                                    @foreach (var avatar in _availablePlayerAvatars)
+                                                    {
+                                                        <button type="button" class="avatar-option @(_registerPlayer.PlayerAvatar == avatar ? "selected" : "")" @onclick="() => SelectAvatar(avatar)">
+                                                            <img class="player-avatar-image" src="@avatar" width="64" height="64" alt="@T["auth.register.chooseAvatar"]" />
+                                                        </button>
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div id="regStep4Anchor">
+                                            <div class="form-floating mb-3">
+                                                <input @bind="_registerUser.Email" @bind:event="oninput" type="email" autocomplete="email" class="form-control bg-dark border-white-10 text-white" id="regEmail" placeholder="@T["auth.common.emailPlaceholder"]" disabled="@_loading" />
+                                                <label for="regEmail" class="text-muted">@T["auth.common.emailAddress"]</label>
+                                            </div>
+                                            <ValidationMessage For="@(() => _registerUser.Email)" />
+                                            <div class="battle-pass-trial-card mb-4">
+                                                <div class="battle-pass-trial-orb"></div>
+                                                <div class="battle-pass-trial-glow"></div>
+                                                <div class="battle-pass-trial-content">
+                                                    <div class="battle-pass-trial-icon">
+                                                        <iconify-icon icon="carbon:badge" width="22"></iconify-icon>
+                                                    </div>
+                                                    <div class="battle-pass-trial-copy-wrap">
+                                                        <div class="battle-pass-trial-pill">@T["auth.register.battlePassTrialPill"]</div>
+                                                        <div class="battle-pass-trial-title">@T["auth.register.battlePassTrialTitle"]</div>
+                                                        <div class="battle-pass-trial-copy">@T["auth.register.battlePassTrialNotice"]</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="form-floating mb-3">
+                                                <input @bind="_registerUser.Password" @bind:event="oninput" type="password" class="form-control bg-dark border-white-10 text-white" id="regPass" placeholder="@T["auth.common.password"]" disabled="@_loading" />
+                                                <label for="regPass" class="text-muted">@T["auth.register.newSecurityCredential"]</label>
+                                            </div>
+                                            <div class="form-floating mb-4">
+                                                <input @bind="_confirmPassword" @bind:event="oninput" type="password" class="form-control bg-dark border-white-10 text-white" id="regConfirm" placeholder="@T["auth.register.confirmPlaceholder"]" disabled="@_loading" />
+                                                <label for="regConfirm" class="text-muted">@T["auth.register.verifyCredential"]</label>
+                                            </div>
+                                        </div>
+                                    }
+
+                                    @if (!string.IsNullOrEmpty(_error))
+                                    {
+                                        <div class="alert alert-danger mb-4 border-0 bg-danger bg-opacity-10 text-danger">
+                                            <iconify-icon icon="carbon:warning" class="me-2"></iconify-icon> @_error
+                                        </div>
+                                    }
+                                </div>
+
+                                <div class="register-form-footer d-flex justify-content-between gap-3 pt-3">
+                                    <button type="button" class="btn btn-outline-light px-4" @onclick="PreviousRegisterStep" disabled="@(_registerStep == 1 || _loading)">@T["common.back"]</button>
+                                    @if (_registerStep < FinalRegisterStep)
+                                    {
+                                        <button type="button" class="btn btn-primary px-4" @onclick="NextRegisterStep" disabled="@(!CanAdvanceRegisterStep || _loading)" id="regNextBtn">@T["common.next"]</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="submit" class="btn btn-primary px-4" disabled="@(_loading || !CanSubmitRegister)" id="regSubmitBtn">
+                                            @if (_loading)
+                                            {
+                                                <iconify-icon icon="line-md:loading-twotone-loop" width="24" class="me-2"></iconify-icon>
+                                                <span>@T["auth.register.creatingProfile"]</span>
+                                            }
+                                            else
+                                            {
+                                                <span>@T["auth.register.synthesizeIdentity"]</span>
+                                            }
+                                        </button>
+                                    }
+                                </div>
+                                <div class="auth-soft-cta mt-3">
+                                    <span class="text-muted small">@T["auth.register.haveAccount"]</span>
+                                    <button type="button" class="btn btn-link p-0 ms-2 auth-link-btn" @onclick="OpenLoginModal">@T["parts.topbar.logIn"]</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+}
+
+@code {
+    private bool _loading;
+    private string? _error;
+    private int _registerStep = 1;
+    private const int TotalRegisterSteps = 5;
+    private const int FinalRegisterStep = TotalRegisterSteps - 1;
+    private const int RequiredProductionProducts = 10;
+    private Country? _selectedCountryDetails;
+    private List<Country> _countries = [];
+    private bool _isOpen;
+    private readonly List<string> _availablePlayerAvatars = Enumerable.Range(0, 72)
+        .Select(i => $"/assets/icons/kings/{i}.png")
+        .ToList();
+    private readonly User _registerUser = new();
+    private readonly Player _registerPlayer = new();
+    private string _confirmPassword = "";
+    private static readonly EmailAddressAttribute EmailAddressValidator = new();
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        try
+        {
+            _countries = await CountriesService.GetAllCountriesAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["auth.register.error.loadRegionsLogPrefix"]);
+            _error = T["auth.register.error.loadInitializationFailed"];
+        }
+    }
+
+    protected override Task OnAppStateChangedAsync()
+    {
+        var isOpen = AppState.ActiveModal == ModalTypesEnum.Register;
+        if (isOpen && !_isOpen)
+        {
+            ResetRegisterWizard();
+        }
+
+        _isOpen = isOpen;
+        return Task.CompletedTask;
+    }
+
+    private void ResetRegisterWizard()
+    {
+        _registerStep = 1;
+        _selectedCountryDetails = null;
+        _registerPlayer.Name = string.Empty;
+        _registerUser.Email = string.Empty;
+        _registerUser.Password = string.Empty;
+        _confirmPassword = string.Empty;
+        _registerPlayer.CountriesId = Guid.Empty;
+        _registerPlayer.PlayerAvatar = null;
+        _error = null;
+    }
+
+    private string GetWizardStepClass(int step)
+    {
+        if (_registerStep > step)
+        {
+            return "completed";
+        }
+
+        if (_registerStep == step)
+        {
+            return "active";
+        }
+
+        return "";
+    }
+
+    private bool CanAdvanceRegisterStep => _registerStep switch
+    {
+        1 => !string.IsNullOrWhiteSpace(_registerPlayer.Name),
+        2 => _selectedCountryDetails is not null,
+        3 => !string.IsNullOrWhiteSpace(_registerPlayer.PlayerAvatar),
+        _ => true
+    };
+
+    private bool CanSubmitRegister => IsValidRegistrationEmail()
+        && !string.IsNullOrWhiteSpace(_registerUser.Password)
+        && _registerUser.Password == _confirmPassword;
+
+    private bool IsValidRegistrationEmail()
+    {
+        var email = _registerUser.Email?.Trim();
+        return !string.IsNullOrWhiteSpace(email) && EmailAddressValidator.IsValid(email);
+    }
+
+    private void NextRegisterStep()
+    {
+        if (_registerStep >= FinalRegisterStep)
+        {
+            return;
+        }
+
+        if (!CanAdvanceRegisterStep)
+        {
+            _error = _registerStep switch
+            {
+                1 => T["auth.register.error.enterPlayerName"],
+                2 => T["auth.register.error.selectCountryAndRegion"],
+                3 => T["auth.register.error.selectPlayerAvatar"],
+                _ => T["auth.register.error.completeSteps"]
+            };
+            return;
+        }
+
+        _error = null;
+        _registerStep++;
+    }
+
+    private async Task SelectCountry(Country country)
+    {
+        if (_selectedCountryDetails?.CountriesId == country.CountriesId)
+        {
+            return;
+        }
+
+        _selectedCountryDetails = country;
+        _registerPlayer.CountriesId = country.CountriesId;
+        _error = null;
+        await TryAutoAdvanceAsync("#regStep3Anchor");
+    }
+
+    private void PreviousRegisterStep()
+    {
+        if (_registerStep <= 1)
+        {
+            return;
+        }
+
+        _error = null;
+        _registerStep--;
+    }
+
+    private async Task SelectAvatar(string avatar)
+    {
+        _registerPlayer.PlayerAvatar = avatar;
+        _error = null;
+        await TryAutoAdvanceAsync("#regStep4Anchor");
+    }
+
+    private static string GetCountryFlagUrl(Country country)
+    {
+        if (!string.IsNullOrWhiteSpace(country.Flag))
+        {
+            var rawFlag = country.Flag.Trim();
+            if (rawFlag.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return rawFlag;
+            }
+
+            if (rawFlag.Length <= 3 && !rawFlag.Contains("/") && !rawFlag.Contains(":"))
+            {
+                return $"https://flagcdn.com/w80/{rawFlag.ToLowerInvariant()}.png";
+            }
+
+            return rawFlag;
+        }
+
+        var iso = (country.IsoCode2 ?? string.Empty).Trim().ToLowerInvariant();
+        return $"https://flagcdn.com/w80/{iso}.png";
+    }
+
+
+    private async Task OnEmailChanged()
+    {
+        if (_registerStep != FinalRegisterStep || string.IsNullOrWhiteSpace(_registerUser.Email))
+        {
+            return;
+        }
+
+        await ScrollToSelectorAsync("#regPass");
+    }
+
+    private async Task OnPasswordChanged()
+    {
+        if (_registerStep != FinalRegisterStep || string.IsNullOrWhiteSpace(_registerUser.Password))
+        {
+            return;
+        }
+
+        await ScrollToSelectorAsync("#regConfirm");
+    }
+
+    private async Task OnConfirmPasswordChanged()
+    {
+        if (_registerStep != FinalRegisterStep || string.IsNullOrWhiteSpace(_confirmPassword))
+        {
+            return;
+        }
+
+        await ScrollToSelectorAsync("#regSubmitBtn");
+    }
+
+    private async Task TryAutoAdvanceAsync(string nextSelector)
+    {
+        if (_loading || !CanAdvanceRegisterStep || _registerStep >= FinalRegisterStep)
+        {
+            return;
+        }
+
+        NextRegisterStep();
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(40);
+        await ScrollToSelectorAsync(nextSelector);
+    }
+
+    private async Task ScrollToSelectorAsync(string selector)
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("authRegister.scrollToNext", selector);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Log.Debug(ex, "Auth register scroll interop unavailable for selector {Selector}.", selector);
+            // JS interop unavailable during prerender; skip.
+        }
+    }
+
+    private void OpenLoginModal()
+    {
+        ClearAuthQueryState();
+        AppState.OpenModal(ModalTypesEnum.Login);
+    }
+
+    private void CloseModal()
+    {
+        ClearAuthQueryState();
+        AppState.CloseModal();
+    }
+
+    private async Task HandleRegister()
+    {
+        if (_registerStep != FinalRegisterStep)
+        {
+            _error = T["auth.register.error.completeSteps"];
+            return;
+        }
+
+        if (!IsValidRegistrationEmail())
+        {
+            _error = T["auth.register.error.invalidEmail"];
+            return;
+        }
+
+        if (!CanSubmitRegister)
+        {
+            _error = T["auth.register.error.validEmailAndPasswords"];
+            return;
+        }
+
+        if (_registerUser.Password != _confirmPassword)
+        {
+            _error = T["auth.register.error.passwordsDoNotMatch"];
+            return;
+        }
+
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var result = await AuthService.SignupAsync(_registerUser, _registerPlayer);
+            if (result)
+            {
+                await JsRuntime.InvokeVoidAsync("authRegister.trackLead");
+                Navigation.NavigateTo("/", true);
+            }
+            else
+            {
+                _error = T["auth.register.error.registrationFailed"];
+            }
+        }
+        catch (InvalidOperationException ex) when (string.Equals(ex.Message, "Invalid email address", StringComparison.Ordinal))
+        {
+            _error = T["auth.register.error.invalidEmail"];
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["auth.register.error.logPrefix"]);
+            _error = T["auth.register.error.unexpected"];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void ClearAuthQueryState()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (string.IsNullOrWhiteSpace(uri.Query))
+        {
+            return;
+        }
+
+        Navigation.NavigateTo("/", replace: true);
+    }
+}

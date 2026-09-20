@@ -1,0 +1,13 @@
+dotnet ef dbcontext scaffold "Server=localhost;Database=map;User=root;Password=root;" MySql.EntityFrameworkCore --output-dir EntitiesEF --context-dir EntitiesEF --context AppDbContext --no-onconfiguring --no-build -f
+
+dotnet ef dbcontext scaffold "Host=localhost;Database=map;Username=postgres;Password=root;" Npgsql.EntityFrameworkCore.PostgreSQL --project Voltrok.EF.csproj --startup-project Voltrok.EF.csproj --context AppDbContext --no-onconfiguring --no-build -f
+
+
+
+powershell -ExecutionPolicy Bypass -File C:\GIT\Simsony\tools\circle-avatar.ps1 `
+   -InputDirectory "C:\GIT\Simsony\webServer\wwwroot\assets\icons\kings_org" `
+   -OutputDirectory "C:\GIT\Simsony\webServer\wwwroot\assets\icons\kings" `
+   -Recurse
+
+
+dotnet ./tools/DataMigrator/bin/Debug/net10.0/DataMigrator.dll  --mysql "Server=localhost;Database=map;User ID=root;Password=root;"  --pgsql "Host=localhost;Database=map2;Username=postgres;Password=root;"   --truncate

@@ -1,0 +1,342 @@
+.landing-intro-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 11000;
+    padding: calc(var(--ui-top-offset, 60px) + 1rem) 1rem 1rem;
+    background:
+        radial-gradient(circle at 22% 18%, rgba(96, 83, 197, 0.14), transparent 26%),
+        linear-gradient(180deg, rgba(5, 6, 11, 0.26), rgba(6, 9, 16, 0.38));
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+}
+
+.landing-intro-dialog {
+    position: relative;
+    width: min(920px, calc(100% - 3rem));
+    height: calc(100vh - var(--ui-top-offset, 60px) - 2rem);
+    margin: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    border-radius: 28px;
+    border: 1px solid rgba(126, 149, 255, 0.2);
+    background:
+        linear-gradient(180deg, rgba(11, 14, 24, 0.72), rgba(8, 11, 18, 0.68)),
+        radial-gradient(circle at top right, rgba(88, 101, 242, 0.16), transparent 34%);
+    box-shadow: 0 26px 60px rgba(0, 0, 0, 0.28);
+}
+
+.landing-intro-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    z-index: 2;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(157, 176, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #eef3ff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.landing-intro-close:hover,
+.landing-intro-close:focus-visible {
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.landing-intro-shell {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 1.35rem;
+    padding-top: 4.6rem;
+    display: grid;
+    gap: 1.15rem;
+}
+
+.landing-intro-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(320px, 0.9fr);
+    gap: 1rem;
+}
+
+.landing-intro-copy,
+.landing-intro-side-panel,
+.landing-intro-feature-card,
+.landing-intro-faq {
+    border: 1px solid rgba(157, 176, 255, 0.14);
+    background: linear-gradient(180deg, rgba(17, 22, 36, 0.7), rgba(10, 13, 24, 0.64));
+    border-radius: 24px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.landing-intro-copy {
+    padding: 1.8rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.landing-intro-copy::before {
+    content: "";
+    position: absolute;
+    inset: auto -10% -24% auto;
+    width: 320px;
+    height: 320px;
+    background: radial-gradient(circle, rgba(77, 91, 228, 0.22), transparent 68%);
+    pointer-events: none;
+}
+
+.landing-intro-badge,
+.landing-intro-side-kicker,
+.landing-intro-faq-label,
+.landing-intro-feature-number {
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #8fb7ff;
+}
+
+.landing-intro-brand {
+    margin: 1rem 0 1.25rem;
+}
+
+.landing-intro-logo {
+    width: min(260px, 100%);
+}
+
+.landing-intro-title {
+    margin: 0;
+    display: grid;
+    gap: 0.2rem;
+    font-size: clamp(2.7rem, 6vw, 5rem);
+    line-height: 0.92;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+}
+
+.landing-intro-title-line {
+    display: block;
+}
+
+.landing-intro-title .title-primary {
+    color: #f7fbff;
+}
+
+.landing-intro-title .title-accent {
+    color: #7aa2ff;
+    text-shadow: 0 0 30px rgba(88, 101, 242, 0.35);
+}
+
+.landing-intro-title .title-highlight {
+    color: #83d9ff;
+    text-shadow: 0 0 24px rgba(76, 166, 255, 0.24);
+}
+
+.landing-intro-description {
+    max-width: 44rem;
+    margin: 1rem 0 0;
+    font-size: 1.02rem;
+    line-height: 1.75;
+    color: rgba(229, 237, 255, 0.78);
+}
+
+.landing-intro-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 1.6rem;
+}
+
+.landing-intro-primary,
+.landing-intro-secondary,
+.landing-intro-tertiary {
+    min-height: 48px;
+    padding: 0.8rem 1.25rem;
+    border-radius: 999px;
+    font-size: 0.86rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+
+.landing-intro-primary {
+    border: 1px solid rgba(138, 156, 255, 0.56);
+    background: linear-gradient(135deg, #667eea 0%, #5865f2 58%, #4752c4 100%);
+    color: #fff;
+    box-shadow: 0 12px 28px rgba(72, 88, 214, 0.28);
+}
+
+.landing-intro-secondary,
+.landing-intro-tertiary {
+    border: 1px solid rgba(157, 176, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #eef3ff;
+}
+
+.landing-intro-primary:hover,
+.landing-intro-primary:focus-visible,
+.landing-intro-secondary:hover,
+.landing-intro-secondary:focus-visible,
+.landing-intro-tertiary:hover,
+.landing-intro-tertiary:focus-visible {
+    transform: translateY(-1px);
+}
+
+.landing-intro-side-panel {
+    padding: 1rem;
+    display: flex;
+    background:
+        radial-gradient(circle at top right, rgba(92, 115, 255, 0.12), transparent 36%),
+        linear-gradient(180deg, rgba(18, 22, 38, 0.72), rgba(10, 13, 25, 0.66));
+}
+
+.landing-intro-video-frame {
+    width: 100%;
+    aspect-ratio: 9 / 16;
+    min-height: 100%;
+    border-radius: 20px;
+    overflow: hidden;
+    border: 1px solid rgba(157, 176, 255, 0.14);
+    background: rgba(5, 7, 14, 0.86);
+    box-shadow: 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+
+.landing-intro-video {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    pointer-events: none;
+    object-fit: cover;
+    background: #05070e;
+}
+
+.landing-intro-feature-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.landing-intro-feature-card {
+    padding: 1.35rem;
+}
+
+.landing-intro-feature-topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.9rem;
+    color: #85d7ff;
+}
+
+.landing-intro-feature-card h2,
+.landing-intro-faq h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: #ffffff;
+}
+
+.landing-intro-feature-card ul {
+    margin: 1rem 0 0;
+    padding-left: 1.2rem;
+    display: grid;
+    gap: 0.72rem;
+    color: rgba(229, 237, 255, 0.8);
+}
+
+.landing-intro-faq {
+    padding: 1.35rem;
+}
+
+.landing-intro-faq-list {
+    display: grid;
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.landing-intro-faq details {
+    border-radius: 18px;
+    border: 1px solid rgba(157, 176, 255, 0.14);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 1rem 1.1rem;
+}
+
+.landing-intro-faq summary {
+    cursor: pointer;
+    list-style: none;
+    font-weight: 700;
+    color: #f6f8ff;
+}
+
+.landing-intro-faq summary::-webkit-details-marker {
+    display: none;
+}
+
+.landing-intro-faq p {
+    margin: 0.7rem 0 0;
+    line-height: 1.7;
+    color: rgba(225, 235, 255, 0.74);
+}
+
+@media (max-width: 1100px) {
+    .landing-intro-dialog {
+        width: min(860px, calc(100% - 2rem));
+    }
+
+    .landing-intro-hero,
+    .landing-intro-feature-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .landing-intro-overlay {
+        padding: calc(var(--ui-top-offset, 60px) + 0.5rem) 0.5rem 0.5rem;
+    }
+
+    .landing-intro-dialog {
+        width: 100%;
+        border-radius: 22px;
+    }
+
+    .landing-intro-shell {
+        padding: 0 0.75rem 0.9rem;
+    }
+
+    .landing-intro-copy,
+    .landing-intro-side-panel,
+    .landing-intro-feature-card,
+    .landing-intro-faq {
+        padding: 1rem;
+        border-radius: 18px;
+    }
+
+    .landing-intro-title {
+        font-size: clamp(2.15rem, 10vw, 3.2rem);
+    }
+
+    .landing-intro-description {
+        font-size: 0.95rem;
+    }
+
+    .landing-intro-actions {
+        flex-direction: column;
+    }
+
+    .landing-intro-primary,
+    .landing-intro-secondary,
+    .landing-intro-tertiary {
+        width: 100%;
+    }
+
+    .landing-intro-video-frame {
+        aspect-ratio: 16 / 9;
+        min-height: 240px;
+    }
+}

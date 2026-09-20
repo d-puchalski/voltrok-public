@@ -1,0 +1,33 @@
+@inherits AppStateComponentBase
+
+<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
+
+<dialog id="components-reconnect-modal" data-nosnippet>
+    <div class="components-reconnect-container">
+        <div class="components-rejoining-animation" aria-hidden="true">
+            <div></div>
+            <div></div>
+        </div>
+        <p class="components-reconnect-first-attempt-visible">
+            @T["layout.reconnect.connecting"]
+        </p>
+        <p class="components-reconnect-repeated-attempt-visible">
+            @T["layout.reconnect.interruptedRetryIn"] <span id="components-seconds-to-next-attempt"></span> @T["layout.reconnect.secondsSuffix"]
+        </p>
+        <p class="components-reconnect-failed-visible">
+            @T["layout.reconnect.failed"]<br/>@T["layout.reconnect.tryAgainOrRefresh"]
+        </p>
+        <button id="components-reconnect-button" class="components-reconnect-failed-visible">
+            @T["layout.reconnect.retry"]
+        </button>
+        <p class="components-pause-visible">
+            @T["layout.reconnect.sessionPaused"]
+        </p>
+        <p class="components-resume-failed-visible">
+            @T["layout.reconnect.resumeFailed"]<br/>@T["layout.reconnect.tryAgainOrRefresh"]
+        </p>
+        <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
+            @T["layout.reconnect.resume"]
+        </button>
+    </div>
+</dialog>

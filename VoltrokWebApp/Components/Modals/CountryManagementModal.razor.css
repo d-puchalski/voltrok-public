@@ -1,0 +1,705 @@
+.country-summary-grid,
+.country-stat-grid,
+.country-card-grid,
+.country-action-grid,
+.inventory-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+}
+
+.country-summary-card,
+.country-stat-card,
+.country-resource-card,
+.country-action-card {
+    position: relative;
+    min-height: 100%;
+}
+
+.country-summary-card,
+.country-stat-card,
+.country-resource-card {
+    padding: 1rem;
+}
+
+.country-summary-card-hero {
+    grid-column: span 2;
+}
+
+.inventory-resource-card {
+    justify-content: space-between;
+    min-height: 200px !important;
+}
+
+.inventory-resource-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.inventory-resource-icon-wrap {
+    width: 96px;
+    height: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--medieval-panel-strong);
+    border: 1px solid var(--medieval-border);
+    box-shadow: var(--medieval-shadow);
+}
+
+.inventory-resource-icon {
+    object-fit: contain;
+}
+
+.inventory-resource-kicker {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--medieval-muted);
+    text-align: right;
+}
+
+.inventory-resource-title {
+    margin-top: 1rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--medieval-text);
+    text-align: right;
+}
+
+.inventory-resource-value {
+    margin-top: 0.5rem;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--medieval-gold);
+    word-break: break-word;
+    text-align: right;
+}
+
+.country-summary-icon,
+.country-resource-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+    background: color-mix(in srgb, var(--medieval-gold) 16%, transparent);
+    color: var(--medieval-gold);
+}
+
+.country-summary-label,
+.country-stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+    margin-bottom: 0.45rem;
+}
+
+.country-summary-value,
+.country-stat-value,
+.country-resource-value {
+    color: var(--medieval-text);
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.country-summary-value {
+    font-size: 1rem;
+}
+
+.country-stat-value {
+    font-size: 1.25rem;
+}
+
+.country-stat-note,
+.country-resource-meta {
+    margin-top: 0.55rem;
+    font-size: 0.8rem;
+    color: color-mix(in srgb, var(--medieval-text) 62%, transparent);
+}
+
+.country-resource-title,
+.country-action-title {
+    color: var(--medieval-text);
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+}
+
+.country-resource-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.country-action-card {
+    padding: 1rem;
+}
+
+.country-trade-policy-card {
+    overflow: visible;
+}
+
+.country-trade-policy-card::after {
+    clip-path: none !important;
+    border-radius: 16px;
+}
+
+.country-trade-policy-card-open {
+    clip-path: none !important;
+    border-radius: 16px !important;
+    z-index: 30;
+}
+
+.country-action-card-head {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.9rem;
+}
+
+.country-action-subtitle {
+    color: color-mix(in srgb, var(--medieval-text) 60%, transparent);
+    font-size: 0.82rem;
+}
+
+.country-combat-policy-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+}
+
+.country-policy-card {
+    padding: 1rem;
+    gap: 1rem;
+}
+
+.country-policy-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+}
+
+.country-policy-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.85rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.country-policy-toggle input {
+    display: none;
+}
+
+.country-policy-toggle-slider {
+    position: relative;
+    width: 52px;
+    height: 30px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-panel) 86%, black 14%);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 90%, transparent);
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.country-policy-toggle-slider::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #f8f1df, #d3c2a0);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.22);
+    transition: transform 0.18s ease;
+}
+
+.country-policy-toggle input:checked + .country-policy-toggle-slider {
+    background: color-mix(in srgb, var(--medieval-gold) 28%, var(--medieval-panel));
+    border-color: color-mix(in srgb, var(--medieval-gold) 48%, var(--medieval-border));
+}
+
+.country-policy-toggle input:checked + .country-policy-toggle-slider::after {
+    transform: translateX(22px);
+}
+
+.country-policy-toggle-text,
+.country-policy-readonly {
+    color: var(--medieval-text);
+    font-size: 0.92rem;
+    font-weight: 700;
+}
+
+.country-policy-readonly.is-enabled {
+    color: #bde7ad;
+}
+
+.country-policy-readonly.is-disabled {
+    color: #f1c3b3;
+}
+
+.country-buildings-grid {
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.country-building-card {
+    min-height: 100% !important;
+}
+
+.country-building-icon {
+    width: 76px;
+    height: 76px;
+}
+
+.country-building-meta-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    margin-top: 1rem;
+}
+
+.country-building-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.65rem 0.8rem;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 90%, transparent);
+    background: color-mix(in srgb, var(--medieval-surface-strong) 74%, transparent);
+}
+
+.country-building-meta-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+}
+
+.country-inline-picker {
+    position: relative;
+    z-index: 2;
+}
+
+.country-inline-picker-trigger {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    text-align: left;
+    width: 100%;
+    padding-right: 2.5rem;
+}
+
+.country-inline-picker-trigger::after {
+    position: absolute;
+    right: 1rem;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.country-inline-picker-menu {
+    position: absolute;
+    top: calc(100% + 0.4rem);
+    left: 0;
+    right: 0;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 0.55rem;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 24%, transparent);
+    background:
+        linear-gradient(180deg, rgba(11, 17, 31, 0.98), rgba(7, 12, 24, 0.98)),
+        radial-gradient(circle at top, rgba(240, 198, 116, 0.1), transparent 60%);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.34);
+}
+
+.country-inline-picker-option {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: var(--medieval-text);
+    background: rgba(255, 255, 255, 0.03);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+}
+
+.country-inline-picker-option:hover {
+    background: rgba(240, 198, 116, 0.08);
+    border-color: color-mix(in srgb, var(--medieval-gold) 32%, transparent);
+    transform: translateY(-1px);
+}
+
+.country-council-tree {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 0.5rem 0;
+}
+
+.country-council-president-wrap {
+    display: flex;
+    justify-content: center;
+}
+
+.country-council-connector {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 2rem;
+}
+
+.country-council-connector-line {
+    position: relative;
+    width: min(100%, 640px);
+    height: 2.25rem;
+}
+
+.country-council-connector-line::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 1.2rem;
+    background: linear-gradient(180deg, rgba(240, 198, 116, 0.95), rgba(240, 198, 116, 0.2));
+}
+
+.country-council-connector-line::after {
+    content: "";
+    position: absolute;
+    bottom: 0.2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: min(100%, 520px);
+    height: 2px;
+    background: linear-gradient(90deg, rgba(240, 198, 116, 0.15), rgba(240, 198, 116, 0.92), rgba(240, 198, 116, 0.15));
+}
+
+.country-council-members-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 1rem;
+    align-items: stretch;
+}
+
+.country-council-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.5rem;
+    padding: 1rem 0.9rem;
+    overflow: hidden;
+}
+
+.country-council-card-president {
+    width: min(100%, 280px);
+}
+
+.country-council-card-president::after {
+    content: "";
+    position: absolute;
+    inset: auto 18px 0.55rem 18px;
+    height: 3px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, rgba(240, 198, 116, 0), rgba(240, 198, 116, 0.95), rgba(240, 198, 116, 0));
+}
+
+.country-council-card-member::before {
+    content: "";
+    position: absolute;
+    top: -0.8rem;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 0.8rem;
+    background: linear-gradient(180deg, rgba(240, 198, 116, 0.85), rgba(240, 198, 116, 0.15));
+}
+
+.country-council-avatar-wrap {
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.country-council-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 36px;
+    object-fit: cover;
+    border: 2px solid rgba(240, 198, 116, 0.45);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.country-council-card-president .country-council-avatar {
+    width: 92px;
+    height: 92px;
+    border-radius: 46px;
+}
+
+.country-council-avatar-fallback {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.country-council-crown {
+    position: absolute;
+    top: -0.35rem;
+    right: -0.35rem;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: 1.8rem;
+    height: 1.8rem;
+    border-radius: 999px;
+    color: #2a1a00;
+    background: linear-gradient(180deg, #ffd979, #e3a92c);
+    box-shadow: 0 8px 18px rgba(227, 169, 44, 0.4);
+}
+
+.country-council-card-role {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(240, 198, 116, 0.9);
+}
+
+.country-council-card-name {
+    color: #fff;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.country-council-card-name :deep(.player-name-badges-wrap) {
+    justify-content: center;
+}
+
+.country-council-card-score,
+.country-council-card-meta {
+    font-size: 0.82rem;
+    color: rgba(218, 228, 240, 0.82);
+}
+
+.country-council-card-meta {
+    display: flex;
+    gap: 0.45rem;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.country-council-chip {
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #ffe5a9;
+    background: rgba(240, 198, 116, 0.14);
+    border: 1px solid rgba(240, 198, 116, 0.26);
+}
+
+.country-war-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.country-war-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.country-war-title {
+    margin-bottom: 0;
+}
+
+.country-war-state {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(225, 233, 242, 0.92);
+    background: rgba(148, 163, 184, 0.16);
+    border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.country-war-meta {
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.country-war-action {
+    align-self: flex-start;
+    margin-top: 0.2rem;
+}
+
+.country-war-range-switch {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.country-war-progress-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    padding: 0.8rem 0.9rem;
+    border-radius: 16px;
+    background: rgba(10, 18, 34, 0.44);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.country-war-progress-head,
+.country-war-progress-meta,
+.country-war-unit-row,
+.country-war-losses {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.65rem;
+    flex-wrap: wrap;
+}
+
+.country-war-progress-head span,
+.country-war-progress-meta span,
+.country-war-losses div,
+.country-war-unit-row span {
+    color: rgba(226, 232, 240, 0.82);
+    font-size: 0.82rem;
+}
+
+.country-war-progress-head strong,
+.country-war-losses strong {
+    color: #f8fafc;
+}
+
+.country-war-progress-hint {
+    font-size: 0.8rem;
+    line-height: 1.45;
+    color: rgba(226, 232, 240, 0.76);
+}
+
+.country-war-progress-bar {
+    width: 100%;
+    height: 0.55rem;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(30, 41, 59, 0.92);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.18);
+}
+
+.country-war-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #f59e0b 0%, #ef4444 100%);
+}
+
+.country-war-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.7rem;
+}
+
+.country-war-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding: 0.75rem 0.85rem;
+    border-radius: 14px;
+    background: rgba(10, 18, 34, 0.38);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.country-war-stat-card span {
+    font-size: 0.74rem;
+    color: rgba(226, 232, 240, 0.68);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.country-war-stat-card strong {
+    color: #f8fafc;
+    font-size: 1rem;
+}
+
+.country-war-losses {
+    padding: 0.75rem 0.85rem;
+    border-radius: 14px;
+    background: rgba(10, 18, 34, 0.34);
+    border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.country-war-units {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.country-war-units-title {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: rgba(226, 232, 240, 0.82);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.country-war-unit-row {
+    padding: 0.55rem 0.7rem;
+    border-radius: 12px;
+    background: rgba(10, 18, 34, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+@media (max-width: 768px) {
+    .country-summary-card-hero {
+        grid-column: span 1;
+    }
+
+    .country-council-members-grid {
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 0.8rem;
+    }
+
+    .country-council-card {
+        padding: 0.9rem 0.75rem;
+    }
+
+    .country-council-card-president {
+        width: 100%;
+    }
+
+    .country-council-connector-line::after {
+        width: min(100%, 280px);
+    }
+
+    .country-war-stats-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}

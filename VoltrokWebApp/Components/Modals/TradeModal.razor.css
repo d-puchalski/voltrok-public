@@ -1,0 +1,553 @@
+.trade-offer-builder {
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 24%, var(--medieval-border));
+    background:
+        radial-gradient(circle at top left, color-mix(in srgb, var(--medieval-gold) 16%, transparent), transparent 38%),
+        linear-gradient(180deg, var(--medieval-card), var(--medieval-panel-strong));
+}
+
+.trade-subtab-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    margin-right: 0.45rem;
+    vertical-align: middle;
+}
+
+.trade-offer-builder-head {
+    margin-bottom: 1.25rem;
+}
+
+.trade-offer-builder-subtitle {
+    color: color-mix(in srgb, var(--medieval-text) 65%, transparent);
+    font-size: 0.88rem;
+}
+
+.trade-resource-picker {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+.trade-resource-tile {
+    border: 1px solid var(--medieval-border);
+    border-radius: 20px;
+    background: linear-gradient(180deg, var(--medieval-card), color-mix(in srgb, var(--medieval-panel) 86%, var(--medieval-bg)));
+    color: var(--medieval-text);
+    padding: 1.25rem 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    min-height: 168px;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.trade-resource-tile:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--medieval-gold) 60%, var(--medieval-border));
+    background: var(--medieval-card-hover);
+    box-shadow: 0 18px 36px var(--medieval-shadow);
+}
+
+.trade-resource-tile.selected {
+    border-color: var(--medieval-gold);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--medieval-gold) 16%, var(--medieval-card)), var(--medieval-action-bg));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--medieval-gold) 22%, transparent), 0 20px 40px var(--medieval-shadow);
+}
+
+.trade-resource-tile-icon {
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    filter: drop-shadow(0 10px 18px var(--medieval-shadow));
+}
+
+.trade-resource-tile-label {
+    color: var(--medieval-text);
+    font-weight: 700;
+    font-size: 1rem;
+    letter-spacing: 0.03em;
+}
+
+.trade-resource-tile-balance {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    width: 100%;
+}
+
+.trade-resource-tile-balance-label {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--medieval-text);
+    text-align: right;
+    width: 100%;
+}
+
+.trade-resource-tile-balance-value {
+    margin-top: 0.5rem;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--medieval-gold);
+    text-align: right;
+    width: 100%;
+}
+
+.trade-offer-summary {
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 22%, var(--medieval-border));
+    border-radius: 18px;
+    background: color-mix(in srgb, var(--medieval-surface-strong) 72%, transparent);
+    box-shadow: inset 0 0 18px var(--medieval-shadow);
+    padding: 1.1rem;
+}
+
+.trade-offer-summary-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.trade-offer-summary-resource {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+}
+
+.trade-offer-summary-icon {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+}
+
+.trade-offer-summary-kicker,
+.trade-offer-summary-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+}
+
+.trade-offer-summary-title {
+    color: var(--medieval-text);
+    font-weight: 700;
+    font-size: 1.05rem;
+}
+
+.trade-offer-summary-total {
+    color: var(--medieval-gold);
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.trade-offer-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.trade-offer-summary-item {
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 92%, transparent);
+    background: color-mix(in srgb, var(--medieval-card) 88%, transparent);
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: var(--medieval-text);
+}
+
+.trade-offer-summary-input {
+    font-weight: 700;
+    font-size: 1.05rem;
+    min-height: 44px;
+}
+
+.trade-offer-summary-note {
+    color: color-mix(in srgb, var(--medieval-text) 62%, transparent);
+    font-size: 0.78rem;
+}
+
+.trade-offer-summary-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    margin-top: 1rem;
+}
+
+.trade-sort-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+
+.trade-country-filter {
+    position: relative;
+}
+
+.trade-filters-panel {
+    padding-top: 0.95rem;
+    padding-bottom: 0.95rem;
+}
+
+.trade-filters-panel > summary {
+    list-style: none;
+}
+
+.trade-filters-panel > summary::-webkit-details-marker {
+    display: none;
+}
+
+.trade-filters-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    cursor: pointer;
+    color: var(--medieval-text);
+    user-select: none;
+}
+
+.trade-filters-summary-copy {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.trade-filters-summary-label {
+    font-size: 0.82rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+}
+
+.trade-filters-summary-icon {
+    flex: 0 0 auto;
+    font-size: 1.1rem;
+    color: var(--medieval-gold);
+    transition: transform 0.18s ease;
+}
+
+.trade-filters-panel[open] .trade-filters-summary-icon {
+    transform: rotate(180deg);
+}
+
+.trade-filters-body {
+    padding-top: 1rem;
+}
+
+.trade-country-filter-trigger {
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    padding: 0.65rem 0.85rem;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    background: color-mix(in srgb, var(--medieval-card) 88%, transparent);
+    color: var(--medieval-text);
+    text-align: left;
+}
+
+.trade-country-filter-menu {
+    position: absolute;
+    top: calc(100% + 0.45rem);
+    left: 0;
+    right: 0;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.55rem;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    background: color-mix(in srgb, var(--medieval-panel) 94%, transparent);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+    max-height: 280px;
+    overflow-y: auto;
+}
+
+.trade-country-filter-option {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: color-mix(in srgb, var(--medieval-card) 78%, transparent);
+    color: var(--medieval-text);
+    text-align: left;
+}
+
+.trade-country-filter-option:hover {
+    border-color: color-mix(in srgb, var(--medieval-gold) 50%, var(--medieval-border));
+    background: var(--medieval-card-hover);
+}
+
+.trade-sort-chip {
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-card) 86%, transparent);
+    color: var(--medieval-text);
+    padding: 0.5rem 0.9rem;
+    font-size: 0.82rem;
+    font-weight: 700;
+    transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.trade-sort-chip:hover {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--medieval-gold) 55%, var(--medieval-border));
+    background: var(--medieval-card-hover);
+}
+
+.trade-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.trade-listing-card {
+    min-height: 100% !important;
+    padding: 1.1rem !important;
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+}
+
+.trade-listing-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+}
+
+.trade-listing-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.trade-listing-resource-wrap {
+    flex: 0 0 auto;
+}
+
+.trade-listing-resource-icon {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+    filter: drop-shadow(0 8px 12px var(--medieval-shadow));
+}
+
+.trade-listing-resource-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.trade-listing-kicker {
+    margin-bottom: 0;
+}
+
+.trade-listing-type {
+    border-radius: 999px;
+    padding: 0.38rem 0.72rem;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 800;
+    border: 1px solid transparent;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.trade-listing-type.sell {
+    background: color-mix(in srgb, #1f8f63 22%, transparent);
+    border-color: color-mix(in srgb, #3dc58b 26%, transparent);
+    color: #a9f6d3;
+}
+
+.trade-listing-type.buy {
+    background: color-mix(in srgb, #348fd3 22%, transparent);
+    border-color: color-mix(in srgb, #73bfff 26%, transparent);
+    color: #b5e0ff;
+}
+
+.trade-listing-resource {
+    color: var(--medieval-gold);
+    letter-spacing: 0.04em;
+}
+
+.trade-listing-total {
+    color: color-mix(in srgb, var(--medieval-gold) 86%, white 14%);
+    font-size: 1.02rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.trade-listing-price-panel {
+    padding: 0.9rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.trade-listing-price-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.trade-listing-card .inventory-resource-meta-card {
+    position: relative;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    border-radius: 16px;
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-surface-strong) 74%, transparent), color-mix(in srgb, var(--medieval-panel) 76%, transparent));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.03),
+        0 10px 22px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+
+.trade-listing-card .inventory-resource-meta-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.025), transparent 48%);
+}
+
+.trade-listing-price {
+    color: var(--medieval-text);
+    font-size: 1.65rem;
+    font-weight: 800;
+    line-height: 1.1;
+}
+
+.trade-listing-price-caption,
+.trade-listing-stat-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+}
+
+.trade-listing-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+}
+
+.trade-listing-stat,
+.trade-listing-policy {
+    padding: 0.8rem 0.9rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    color: var(--medieval-text);
+}
+
+.trade-listing-policy strong,
+.trade-listing-stat strong {
+    font-size: 1rem;
+}
+
+.trade-listing-seller-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.6rem;
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+.trade-listing-seller-summary :deep(.country-name-with-flag) {
+    color: color-mix(in srgb, var(--medieval-text) 82%, transparent);
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.trade-listing-seller-summary strong {
+    min-width: 0;
+}
+
+.trade-listing-stat-total {
+    color: var(--medieval-gold);
+}
+
+.trade-listing-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    margin-top: auto;
+}
+
+.trade-listing-action-btn {
+    min-width: 120px;
+    border-color: color-mix(in srgb, var(--medieval-gold) 40%, var(--medieval-border));
+    color: var(--medieval-text);
+    background: color-mix(in srgb, var(--medieval-card) 82%, transparent);
+}
+
+.trade-listing-action-btn:hover:not(:disabled) {
+    border-color: var(--medieval-gold);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--medieval-gold) 22%, transparent), color-mix(in srgb, var(--medieval-accent, #8f6bff) 12%, transparent));
+    color: var(--medieval-text);
+}
+
+.trade-listing-archive-meta {
+    color: color-mix(in srgb, var(--medieval-text) 68%, transparent);
+    font-size: 0.88rem;
+    font-weight: 600;
+}
+
+@media (max-width: 767.98px) {
+    .trade-filters-panel {
+        padding: 0.85rem 0.85rem 0.8rem;
+    }
+
+    .trade-filters-summary {
+        gap: 0.75rem;
+    }
+
+    .trade-resource-picker,
+    .trade-offer-summary-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .trade-offer-summary-top,
+    .trade-offer-summary-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .trade-offer-summary-total {
+        font-size: 1.2rem;
+    }
+
+    .trade-listing-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .trade-listing-price-panel {
+        align-items: flex-start;
+    }
+
+    .trade-listing-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}

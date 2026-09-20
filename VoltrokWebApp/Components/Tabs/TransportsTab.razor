@@ -1,0 +1,435 @@
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject PlayerTradeService PlayerTradeService
+@inject TranslationService T
+
+<div class="content-section mb-5">
+    @if (!string.IsNullOrEmpty(_errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 bg-danger bg-opacity-10 text-danger" role="alert">
+            <iconify-icon icon="solar:danger-bold" class="me-2"></iconify-icon>
+            @_errorMessage
+            <button type="button" class="btn-close btn-close-white" @onclick="ClearError"></button>
+        </div>
+    }
+
+    @if (_isLoading)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.transports.loading"]</p>
+        </div>
+    }
+    else if (_transports.Count == 0)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.transports.noRecords"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="section-header mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <h6 class="m-0 text-white">@T["tabs.transports.history"]</h6>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <select class="form-select form-select-sm bg-dark border-white-10 text-white"
+                        style="width: 170px;"
+                        value="@_statusFilter"
+                        @onchange="HandleStatusFilterChange">
+                    <option value="all">@T["tabs.production.filter.allStatuses"]</option>
+                    @foreach (var status in TransportStatuses)
+                    {
+                        <option value="@status">@GetTransportStatusLabel(status)</option>
+                    }
+                </select>
+                <select class="form-select form-select-sm bg-dark border-white-10 text-white"
+                        style="width: 180px;"
+                        value="@_sortOption"
+                        @onchange="HandleSortOptionChange">
+                    <option value="@TransportSortOption.StartTimeDesc">@T["tabs.trade.sort.newestFirst"]</option>
+                    <option value="@TransportSortOption.StartTimeAsc">@T["tabs.trade.sort.oldestFirst"]</option>
+                    <option value="@TransportSortOption.EtaAsc">@T["tabs.transports.sort.etaNearest"]</option>
+                    <option value="@TransportSortOption.EtaDesc">@T["tabs.transports.sort.etaFarthest"]</option>
+                </select>
+            </div>
+        </div>
+
+        @if (!_transports.Any())
+        {
+            <div class="text-center py-5 glass-card">
+                <p class="text-muted">@T["tabs.transports.noMatching"]</p>
+            </div>
+        }
+        else
+        {
+            @if (TotalPages > 1)
+            {
+                var topVisiblePages = GetVisiblePageNumbers(_currentPage, TotalPages);
+                var topShowFirstPage = topVisiblePages.Count > 0 && topVisiblePages[0] > 1;
+                var topShowLastPage = topVisiblePages.Count > 0 && topVisiblePages[^1] < TotalPages;
+                <div class="trade-pager mb-3">
+                    <small class="trade-pager-summary">@PageStartItem-@PageEndItem / @_totalTransportsCount</small>
+                    <div class="trade-pager-controls" role="group" aria-label="@T["tabs.transports.pagination.topAriaLabel"]">
+                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@(_currentPage <= 1 || _isLoading)">«</button>
+                        <button type="button" class="trade-pager-btn" @onclick="GoToPreviousPageAsync" disabled="@(_currentPage <= 1 || _isLoading)">‹</button>
+
+                        @if (topShowFirstPage)
+                        {
+                            <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@_isLoading">1</button>
+                            @if (topVisiblePages[0] > 2)
+                            {
+                                <span class="trade-pager-dots">…</span>
+                            }
+                        }
+
+                        @foreach (var pageNumber in topVisiblePages)
+                        {
+                            <button type="button"
+                                    class="trade-pager-btn @(pageNumber == _currentPage ? "active" : string.Empty)"
+                                    @onclick="() => GoToPageAsync(pageNumber)"
+                                    disabled="@_isLoading">
+                                @pageNumber
+                            </button>
+                        }
+
+                        @if (topShowLastPage)
+                        {
+                            @if (topVisiblePages[^1] < TotalPages - 1)
+                            {
+                                <span class="trade-pager-dots">…</span>
+                            }
+                            <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@_isLoading">@TotalPages</button>
+                        }
+
+                        <button type="button" class="trade-pager-btn" @onclick="GoToNextPageAsync" disabled="@(_currentPage >= TotalPages || _isLoading)">›</button>
+                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@(_currentPage >= TotalPages || _isLoading)">»</button>
+                    </div>
+                </div>
+            }
+
+            <div class="slots-horizontal-grid">
+                @foreach (var transport in _transports)
+                {
+                    var isOutgoing = _currentPlayerId.HasValue && transport.FromPlayersId == _currentPlayerId.Value;
+                    var resourceLabel = TryGetTransportResourceCode(transport, out var resourceCode)
+                        ? T[$"products.code.{resourceCode}"]
+                        : "-";
+                    var resourceIconPath = GetResourceIconPath(transport.ResourceCode);
+                    <div class="building-card-large inventory-resource-card trade-resource-card">
+                        <div class="inventory-resource-card-top">
+                            <div class="inventory-resource-icon-wrap">
+                                <img class="inventory-resource-icon" src="@resourceIconPath" alt="@resourceLabel" />
+                            </div>
+                            <div class="inventory-resource-kicker">@GetTransportStatusLabel(transport.Status)</div>
+                        </div>
+                        <div class="inventory-resource-title">@resourceLabel</div>
+                        <div class="inventory-resource-value">@transport.Quantity.ToString("N0")</div>
+                        <div class="inventory-resource-meta-list">
+                            <div class="inventory-resource-meta-row">
+                                <span>@T["tabs.transports.direction"]</span>
+                                <strong>@(isOutgoing? T["tabs.transports.direction.out"] : T["tabs.transports.direction.in"])</strong>
+                            </div>
+                            <div class="inventory-resource-meta-row">
+                                <span>@T["tabs.transports.from"]</span>
+                                <strong>@(transport.FromPlayers?.Name ?? "-")</strong>
+                            </div>
+                            <div class="inventory-resource-meta-row">
+                                <span>@T["tabs.transports.to"]</span>
+                                <strong>@(transport.ToPlayers?.Name ?? "-")</strong>
+                            </div>
+                            <div class="inventory-resource-meta-row">
+                                <span>@T["tabs.transports.eta"]</span>
+                                <strong>@transport.TransportEndTime.ToLocalTime().ToString("g")</strong>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            @if (TotalPages > 1)
+            {
+                var bottomVisiblePages = GetVisiblePageNumbers(_currentPage, TotalPages);
+                var bottomShowFirstPage = bottomVisiblePages.Count > 0 && bottomVisiblePages[0] > 1;
+                var bottomShowLastPage = bottomVisiblePages.Count > 0 && bottomVisiblePages[^1] < TotalPages;
+                <div class="trade-pager mt-3">
+                    <small class="trade-pager-summary">@PageStartItem-@PageEndItem / @_totalTransportsCount</small>
+                    <div class="trade-pager-controls" role="group" aria-label="@T["tabs.transports.pagination.bottomAriaLabel"]">
+                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@(_currentPage <= 1 || _isLoading)">«</button>
+                        <button type="button" class="trade-pager-btn" @onclick="GoToPreviousPageAsync" disabled="@(_currentPage <= 1 || _isLoading)">‹</button>
+
+                        @if (bottomShowFirstPage)
+                        {
+                            <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@_isLoading">1</button>
+                            @if (bottomVisiblePages[0] > 2)
+                            {
+                                <span class="trade-pager-dots">…</span>
+                            }
+                        }
+
+                        @foreach (var pageNumber in bottomVisiblePages)
+                        {
+                            <button type="button"
+                                    class="trade-pager-btn @(pageNumber == _currentPage ? "active" : string.Empty)"
+                                    @onclick="() => GoToPageAsync(pageNumber)"
+                                    disabled="@_isLoading">
+                                @pageNumber
+                            </button>
+                        }
+
+                        @if (bottomShowLastPage)
+                        {
+                            @if (bottomVisiblePages[^1] < TotalPages - 1)
+                            {
+                                <span class="trade-pager-dots">…</span>
+                            }
+                            <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@_isLoading">@TotalPages</button>
+                        }
+
+                        <button type="button" class="trade-pager-btn" @onclick="GoToNextPageAsync" disabled="@(_currentPage >= TotalPages || _isLoading)">›</button>
+                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@(_currentPage >= TotalPages || _isLoading)">»</button>
+                    </div>
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public required Player? Player { get; set; }
+
+    private Guid? _currentPlayerId;
+    private List<PlayerTrade> _transports = [];
+    private string? _errorMessage;
+    private bool _isLoading;
+    private string _statusFilter = "all";
+    private TransportSortOption _sortOption = TransportSortOption.StartTimeDesc;
+    private const int PageSize = 12;
+    private int _currentPage = 1;
+    private int _totalTransportsCount;
+    private List<string> _transportStatuses = [];
+
+    private IEnumerable<string> TransportStatuses => _transportStatuses;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)_totalTransportsCount / PageSize));
+    private int PageStartItem => _totalTransportsCount == 0 ? 0 : ((_currentPage - 1) * PageSize) + 1;
+    private int PageEndItem => _totalTransportsCount == 0 ? 0 : Math.Min(((_currentPage - 1) * PageSize) + _transports.Count, _totalTransportsCount);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Player?.PlayersId == null)
+        {
+            return;
+        }
+
+        if (_currentPlayerId != Player.PlayersId)
+        {
+            _currentPlayerId = Player.PlayersId;
+            await LoadTransportData(Player.PlayersId);
+        }
+    }
+
+    private async Task LoadTransportData(Guid playerId)
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _transportStatuses =
+            [
+                nameof(PlayerTransportStatus.InProgress),
+                nameof(PlayerTransportStatus.InSiege),
+                nameof(PlayerTransportStatus.Cancelled),
+                nameof(PlayerTransportStatus.Returning),
+                nameof(PlayerTransportStatus.Completed)
+            ];
+
+            if (!string.Equals(_statusFilter, "all", StringComparison.OrdinalIgnoreCase)
+                && !_transportStatuses.Contains(_statusFilter, StringComparer.OrdinalIgnoreCase))
+            {
+                _statusFilter = "all";
+            }
+
+            await LoadTransportsPageAsync(playerId);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["tabs.transports.error.loadLogPrefix"]);
+            _errorMessage = T["tabs.transports.errorLoading"];
+            _transports = [];
+            _totalTransportsCount = 0;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task HandleStatusFilterChange(ChangeEventArgs args)
+    {
+        _statusFilter = args.Value?.ToString() ?? "all";
+        _currentPage = 1;
+        if (_currentPlayerId.HasValue)
+        {
+            _isLoading = true;
+            try
+            {
+                await LoadTransportsPageAsync(_currentPlayerId.Value);
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+    }
+
+    private async Task HandleSortOptionChange(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        _sortOption = Enum.TryParse<TransportSortOption>(value, out var sortOption)
+            ? sortOption
+            : TransportSortOption.StartTimeDesc;
+        _currentPage = 1;
+        if (_currentPlayerId.HasValue)
+        {
+            _isLoading = true;
+            try
+            {
+                await LoadTransportsPageAsync(_currentPlayerId.Value);
+            }
+            finally
+            {
+                _isLoading = false;
+            }
+        }
+    }
+
+    private static bool TryGetTransportResourceCode(PlayerTrade transport, out ResourceUnitsEnum resourceCode)
+        => Enum.TryParse(transport.ResourceCode, true, out resourceCode);
+
+    private static string GetResourceIconPath(string? code)
+        => code?.Trim().ToLowerInvariant() switch
+        {
+            "oil" => "/assets/icons/resources/oil.png",
+            "uranium" => "/assets/icons/resources/uranium.png",
+            "chips" => "/assets/icons/resources/chips.png",
+            _ => "/assets/icons/resources/money.png"
+        };
+
+    private void ClearError()
+    {
+        _errorMessage = null;
+    }
+
+    private async Task LoadTransportsPageAsync(Guid playerId)
+    {
+        var (sortColumn, sortAscending) = MapSortOption(_sortOption);
+        var pageResult = await PlayerTradeService.GetTradeHistoryPagedAsync(
+            playerId,
+            _currentPage,
+            PageSize,
+            _statusFilter,
+            sortColumn,
+            sortAscending);
+
+        _transports = pageResult.Items.ToList();
+        _totalTransportsCount = pageResult.TotalCount;
+
+        if (_totalTransportsCount > 0 && _currentPage > TotalPages)
+        {
+            _currentPage = TotalPages;
+            pageResult = await PlayerTradeService.GetTradeHistoryPagedAsync(
+                    playerId,
+                    _currentPage,
+                    PageSize,
+                    _statusFilter,
+                    sortColumn,
+                    sortAscending);
+            _transports = pageResult.Items.ToList();
+            _totalTransportsCount = pageResult.TotalCount;
+        }
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        if (!_currentPlayerId.HasValue)
+        {
+            return;
+        }
+
+        var targetPage = Math.Clamp(page, 1, TotalPages);
+        if (targetPage == _currentPage)
+        {
+            return;
+        }
+
+        _currentPage = targetPage;
+        _isLoading = true;
+        try
+        {
+            await LoadTransportsPageAsync(_currentPlayerId.Value);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private Task GoToPreviousPageAsync() => GoToPageAsync(_currentPage - 1);
+    private Task GoToNextPageAsync() => GoToPageAsync(_currentPage + 1);
+
+    private string GetTransportStatusLabel(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return T["tabs.transports.status.unknown"];
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "intransit" => T["tabs.transports.status.inProgress"],
+            "completed" => T["tabs.transports.status.completed"],
+            "cancelled" => T["tabs.transports.status.cancelled"],
+            _ => status
+        };
+    }
+
+    private static (string SortColumn, bool SortAscending) MapSortOption(TransportSortOption sortOption)
+    {
+        return sortOption switch
+        {
+            TransportSortOption.StartTimeAsc => ("start", true),
+            TransportSortOption.EtaAsc => ("eta", true),
+            TransportSortOption.EtaDesc => ("eta", false),
+            _ => ("start", false)
+        };
+    }
+
+    private static List<int> GetVisiblePageNumbers(int currentPage, int totalPages)
+    {
+        if (totalPages <= 0)
+        {
+            return [];
+        }
+
+        const int radius = 2;
+        var start = Math.Max(1, currentPage - radius);
+        var end = Math.Min(totalPages, currentPage + radius);
+        var result = new List<int>();
+        for (var page = start; page <= end; page++)
+        {
+            result.Add(page);
+        }
+
+        return result;
+    }
+
+    private enum TransportSortOption
+    {
+        StartTimeDesc,
+        StartTimeAsc,
+        EtaAsc,
+        EtaDesc
+    }
+}

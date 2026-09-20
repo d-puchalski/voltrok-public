@@ -1,0 +1,38 @@
+@page "/Error"
+@using System.Diagnostics
+@using Microsoft.AspNetCore.Components.Web
+@using VoltrokServices.Services.Translations
+@inject TranslationService T
+
+<PageTitle>@T["error.pageTitle"]</PageTitle>
+
+<h1 class="text-danger">@T["error.title"]</h1>
+<h2 class="text-danger">@T["error.subtitle"]</h2>
+
+@if (ShowRequestId)
+{
+    <p>
+        <strong>@T["error.requestId"]</strong> <code>@RequestId</code>
+    </p>
+}
+
+<h3>@T["error.devMode"]</h3>
+<p>
+    @T["error.devModeDescription"]
+</p>
+<p>
+    <strong>@T["error.devWarningStrong"]</strong>
+    @T["error.devWarningSensitiveInfo"]
+    @T["error.devWarningHowTo"]
+</p>
+
+@code{
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

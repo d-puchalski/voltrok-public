@@ -1,0 +1,27 @@
+.country-name-with-flag {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
+.country-name-with-flag-image,
+.country-name-with-flag-fallback {
+    flex: 0 0 auto;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.22);
+}
+
+.country-name-with-flag-fallback {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--medieval-text, #fff);
+}
+
+.country-name-with-flag-text {
+    min-width: 0;
+}

@@ -1,0 +1,336 @@
+@using VoltrokServices.Services.Countries
+@using VoltrokEF
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject CountriesService CountriesService
+@inject CountryGovernanceService CountryGovernanceService
+
+@inherits VoltrokWebApp.Components.AppStateComponentBase
+
+@if (IsVisible)
+{
+    <div class="country-map-tooltip">
+        @if (_governance == null || _stats == null)
+        {
+            <div class="country-map-tooltip-card">
+                <div class="country-map-tooltip-loading">@T["tabs.military.loading"]</div>
+            </div>
+        }
+        else
+        {
+            <div class="country-map-tooltip-card">
+                <button type="button" class="country-map-tooltip-close" @onclick="CloseTooltip" aria-label="@T["layout.main.dismiss"]">
+                    <iconify-icon icon="solar:close-circle-bold"></iconify-icon>
+                </button>
+
+                <div class="country-map-tooltip-head">
+                    <div class="country-map-tooltip-flag-wrap">
+                        @if (!string.IsNullOrWhiteSpace(GetCountryFlagPath(_governance)))
+                        {
+                            <img class="country-map-tooltip-flag" src="@GetCountryFlagPath(_governance)" alt="@_governance.Name" />
+                        }
+                        else
+                        {
+                            <iconify-icon icon="solar:flag-bold" width="42" height="42"></iconify-icon>
+                        }
+                    </div>
+                    <div class="country-map-tooltip-head-text">
+                        <div class="country-map-tooltip-name">@_governance.Name</div>
+                        <div class="country-map-tooltip-subtitle">
+                            @T["tabs.country.president"]: @(GetPresidentName(_governance) ?? T["tabs.military.na"])
+                        </div>
+                    </div>
+                </div>
+
+                <div class="country-map-tooltip-stats">
+                    <div class="country-map-tooltip-stat">
+                        <span>@T["modals.country.overview.countryTaxLabel"]</span>
+                        <strong>@_governance.TaxPercent.ToString("0.##")%</strong>
+                    </div>
+                    <div class="country-map-tooltip-stat">
+                        <span>@T["modals.country.overview.treasuryBalanceLabel"]</span>
+                        <strong>₿ @_governance.Money.ToString("N2")</strong>
+                    </div>
+                </div>
+
+                @if (CanManageRelations)
+                {
+                    <div class="country-map-tooltip-section">
+                        <div class="country-map-tooltip-section-title">@T["modals.country.tooltip.relationsTitle"]</div>
+
+                        <div class="country-map-tooltip-actions">
+                            @if (ActiveWarWithTarget != null)
+                            {
+                                <button type="button" class="btn btn-outline-danger" @onclick="OpenCancelWarConfirm">
+                                    @T["modals.country.tooltip.cancelWar"]
+                                </button>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-outline-danger" @onclick="OpenDeclareWarConfirm">
+                                    @T["tabs.country.declareWar"]
+                                </button>
+                            }
+                        </div>
+
+                        @if (_showDeclareWarConfirm)
+                        {
+                            <div class="country-map-tooltip-confirm">
+                                <div class="country-map-tooltip-confirm-copy">
+                                    @((MarkupString)string.Format(T["modals.country.tooltip.confirmDeclareHtml"], $"<strong>{_governance.Name}</strong>"))
+                                </div>
+                                <div class="country-map-tooltip-confirm-actions">
+                                    <button type="button" class="btn btn-danger btn-sm" @onclick="DeclareWarAsync">@T["modals.country.tooltip.confirmButton"]</button>
+                                    <button type="button" class="btn btn-outline-light btn-sm" @onclick="CloseWarConfirm">@T["common.back"]</button>
+                                </div>
+                            </div>
+                        }
+
+                        @if (_showCancelWarConfirm)
+                        {
+                            <div class="country-map-tooltip-confirm country-map-tooltip-confirm-cancel">
+                                <div class="country-map-tooltip-confirm-copy">
+                                    @((MarkupString)string.Format(T["modals.country.tooltip.confirmCancelHtml"], $"<strong>{_governance.Name}</strong>"))
+                                </div>
+                                <div class="country-map-tooltip-confirm-actions">
+                                    <button type="button" class="btn btn-warning btn-sm" @onclick="CancelWarAsync">@T["modals.country.tooltip.cancelWar"]</button>
+                                    <button type="button" class="btn btn-outline-light btn-sm" @onclick="CloseWarConfirm">@T["common.back"]</button>
+                                </div>
+                            </div>
+                        }
+
+                    </div>
+                }
+                else if (AppState.MyPlayer?.CountriesId == _governance.CountriesId)
+                {
+                    <div class="country-map-tooltip-note">@T["modals.country.tooltip.ownCountryNote"]</div>
+                }
+                else
+                {
+                    <div class="country-map-tooltip-note">@T["modals.country.tooltip.onlyPresidentNote"]</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_actionError))
+                {
+                    <div class="country-map-tooltip-feedback is-error">@_actionError</div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_actionSuccess))
+                {
+                    <div class="country-map-tooltip-feedback is-success">@_actionSuccess</div>
+                }
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private Country? _governance;
+    private Country? _myCountryGovernance;
+    private CountryMapTooltipStats? _stats;
+    private Guid? _loadedCountryId;
+    private string? _actionError;
+    private string? _actionSuccess;
+    private bool _showDeclareWarConfirm;
+    private bool _showCancelWarConfirm;
+
+    private bool IsVisible =>
+        AppState is { ClickedLastCountryId: not null, ActiveModal: ModalTypesEnum.None };
+
+    private bool CanManageRelations =>
+        _governance != null
+        && AppState.MyPlayer?.PlayersId == _myCountryGovernance?.PresidentPlayersId
+        && AppState.MyPlayer != null
+        && AppState.MyPlayer.CountriesId != _governance.CountriesId;
+
+    private CountryWar? ActiveWarWithTarget =>
+        _governance == null
+            ? null
+            : GetCountryWars(_myCountryGovernance).FirstOrDefault(w =>
+                string.Equals(w.Status, "active", StringComparison.OrdinalIgnoreCase)
+                && ((w.CountryFromId == _myCountryGovernance!.CountriesId && w.CountryToId == _governance.CountriesId)
+                    || (w.CountryToId == _myCountryGovernance.CountriesId && w.CountryFromId == _governance.CountriesId)));
+
+    private CountryTradePolicy? ActiveTradePolicy =>
+        _governance == null
+            ? null
+            : _myCountryGovernance?.CountryTradePolicySourceCountries
+                .FirstOrDefault(policy => policy.TargetCountriesId == _governance.CountriesId);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnsureTooltipDataAsync();
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsureTooltipDataAsync();
+        await base.OnAppStateChangedAsync();
+    }
+
+    private async Task EnsureTooltipDataAsync()
+    {
+        if (!IsVisible)
+        {
+            ResetState();
+            return;
+        }
+
+        if (_loadedCountryId == AppState.ClickedLastCountryId && _governance != null && _stats != null)
+        {
+            return;
+        }
+
+        _loadedCountryId = AppState.ClickedLastCountryId;
+        _actionError = null;
+        _actionSuccess = null;
+        _showDeclareWarConfirm = false;
+        _showCancelWarConfirm = false;
+
+        if (!_loadedCountryId.HasValue)
+        {
+            return;
+        }
+
+        _governance = await CountryGovernanceService.GetCountryDetailsAsync(_loadedCountryId.Value);
+        _stats = await CountriesService.GetCountryMapTooltipStatsAsync(_loadedCountryId.Value);
+        _myCountryGovernance = await CountryGovernanceService.GetCountryDetailsAsync(AppState.MyPlayer.CountriesId);
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void CloseTooltip()
+    {
+        AppState.ClearCountryInfo();
+    }
+
+    private void OpenDeclareWarConfirm()
+    {
+        _showCancelWarConfirm = false;
+        _showDeclareWarConfirm = true;
+    }
+
+    private void OpenCancelWarConfirm()
+    {
+        _showDeclareWarConfirm = false;
+        _showCancelWarConfirm = true;
+    }
+
+    private void CloseWarConfirm()
+    {
+        _showDeclareWarConfirm = false;
+        _showCancelWarConfirm = false;
+    }
+
+    private async Task DeclareWarAsync()
+    {
+        if (!CanManageRelations || _governance == null || AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await CountryGovernanceService.DeclareCountryWarAsync(AppState.MyPlayer.PlayersId, _governance.CountriesId);
+            _actionSuccess = T["tabs.country.warDeclared"];
+            _actionError = null;
+            CloseWarConfirm();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryMapTooltip failed to declare war for country {CountryId}.", _governance?.CountriesId);
+            _actionError = ex.Message;
+            _actionSuccess = null;
+        }
+    }
+
+    private async Task CancelWarAsync()
+    {
+        if (!CanManageRelations || ActiveWarWithTarget == null || AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        try
+        {
+            await CountryGovernanceService.CancelCountryWarAsync(AppState.MyPlayer.PlayersId, ActiveWarWithTarget.CountryWarsId);
+            _actionSuccess = T["modals.country.tooltip.warCancelled"];
+            _actionError = null;
+            CloseWarConfirm();
+            await ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryMapTooltip failed to cancel war {WarId} for country {CountryId}.", ActiveWarWithTarget?.CountryWarsId, _governance?.CountriesId);
+            _actionError = ex.Message;
+            _actionSuccess = null;
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        _loadedCountryId = null;
+        return EnsureTooltipDataAsync();
+    }
+
+    private static string? GetCountryFlagPath(Country governance)
+    {
+        if (!string.IsNullOrWhiteSpace(governance.Flag))
+        {
+            var rawFlag = governance.Flag.Trim();
+            if (rawFlag.Length <= 3 && !rawFlag.Contains("/") && !rawFlag.Contains(":"))
+            {
+                return $"https://flagcdn.com/w40/{rawFlag.ToLowerInvariant()}.png";
+            }
+
+            return rawFlag;
+        }
+
+        if (!string.IsNullOrWhiteSpace(governance.IsoCode2))
+        {
+            var code = governance.IsoCode2.Trim().ToLowerInvariant();
+            if (code.Length is 2 or 3)
+            {
+                return $"https://flagcdn.com/w40/{code}.png";
+            }
+        }
+
+        return null;
+    }
+
+    private static string? GetPresidentName(Country governance)
+        => governance.Players.FirstOrDefault(player => player.PlayersId == governance.PresidentPlayersId)?.Name;
+
+    private static IEnumerable<CountryWar> GetCountryWars(Country? country)
+    {
+        if (country == null)
+        {
+            return [];
+        }
+
+        return country.CountryWarCountryFroms
+            .Concat(country.CountryWarCountryTos)
+            .GroupBy(war => war.CountryWarsId)
+            .Select(group => group.First());
+    }
+
+    private void ResetState()
+    {
+        _governance = null;
+        _myCountryGovernance = null;
+        _stats = null;
+        _loadedCountryId = null;
+        _actionError = null;
+        _actionSuccess = null;
+        _showDeclareWarConfirm = false;
+        _showCancelWarConfirm = false;
+    }
+}

@@ -1,0 +1,330 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Models
+
+@inject PlayersService PlayersService
+@inject TranslationService T
+
+<div class="content-section overview-root">
+    @if (Player == null)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.overview.loading"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="management-tabs mb-4">
+            <button class="management-tab @GetRangeButtonClass(OverviewRange.Day)"
+                    @onclick="() => SetRangeAsync(OverviewRange.Day)"
+                    disabled="@_isLoading">
+                @T["tabs.overview.rangeOption.day"]
+            </button>
+            <button class="management-tab @GetRangeButtonClass(OverviewRange.Week)"
+                    @onclick="() => SetRangeAsync(OverviewRange.Week)"
+                    disabled="@_isLoading">
+                @T["tabs.overview.rangeOption.week"]
+            </button>
+            <button class="management-tab @GetRangeButtonClass(OverviewRange.Month)"
+                    @onclick="() => SetRangeAsync(OverviewRange.Month)"
+                    disabled="@_isLoading">
+                @T["tabs.overview.rangeOption.month"]
+            </button>
+        </div>
+
+        @if (_isLoading)
+        {
+            <div class="glass-card p-4 text-center">
+                <iconify-icon icon="line-md:loading-loop" width="28" class="text-info mb-2"></iconify-icon>
+                <div class="text-muted">@T["tabs.overview.compiling"]</div>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger">@_error</div>
+        }
+        else
+        {
+            <div class="overview-chart-grid">
+                <div class="overview-chart-card resources">
+                    <div class="overview-chart-top">
+                        <div>
+                            <div class="overview-chart-title">@T["tabs.overview.resourcesBalance"]</div>
+                            <div class="overview-chart-subtitle">@T["tabs.overview.resourcesSubtitle"]</div>
+                        </div>
+                        <div class="overview-chart-delta @GetDeltaClass(GetResourcesDelta())">@FormatSigned(GetResourcesDelta(), "N0")</div>
+                    </div>
+                    <div class="overview-chart-value">@(((CurrentPoint?.Oil + CurrentPoint?.Chips + CurrentPoint?.Uranium) ?? 0).ToString("N0"))</div>
+                    @RenderChartSvg("resources", ResourcesSeries, "#8a2be2", "#3d1b65")
+                    <div class="overview-chart-axis">
+                        <span>@GetRangeStartLabel()</span>
+                        <span>@GetRangeEndLabel()</span>
+                    </div>
+                </div>
+
+                <div class="overview-chart-card military">
+                    <div class="overview-chart-top">
+                        <div>
+                            <div class="overview-chart-title">@T["tabs.overview.militaryBalance"]</div>
+                            <div class="overview-chart-subtitle">@T["tabs.overview.militarySubtitle"]</div>
+                        </div>
+                        <div class="overview-chart-delta @GetDeltaClass(GetArmyDelta())">@FormatSigned(GetArmyDelta(), "N0")</div>
+                    </div>
+                    <div class="overview-chart-value">@((CurrentPoint?.ArmyTotal ?? 0).ToString("N0"))</div>
+                    @RenderChartSvg("military", ArmySeries, "#ff7b00", "#7a2f00")
+                    <div class="overview-chart-axis">
+                        <span>@GetRangeStartLabel()</span>
+                        <span>@GetRangeEndLabel()</span>
+                    </div>
+                </div>
+
+                <div class="overview-chart-card money">
+                    <div class="overview-chart-top">
+                        <div>
+                            <div class="overview-chart-title">@T["tabs.overview.moneyBalance"]</div>
+                            <div class="overview-chart-subtitle">@T["tabs.overview.moneySubtitle"]</div>
+                        </div>
+                        <div class="overview-chart-delta @GetDeltaClass(GetMoneyDelta())">@FormatSignedMoney(GetMoneyDelta())</div>
+                    </div>
+                    <div class="overview-chart-value">@FormatMoney(CurrentPoint?.Money ?? 0m)</div>
+                    @RenderChartSvg("money", MoneySeries, "#00ffa3", "#006b47")
+                    <div class="overview-chart-axis">
+                        <span>@GetRangeStartLabel()</span>
+                        <span>@GetRangeEndLabel()</span>
+                    </div>
+                </div>
+
+                <div class="overview-chart-card resources">
+                    <div class="overview-chart-top">
+                        <div>
+                            <div class="overview-chart-title">@T["tabs.overview.scoreProgress"]</div>
+                            <div class="overview-chart-subtitle">@T["tabs.overview.scoreSubtitle"]</div>
+                        </div>
+                        <div class="overview-chart-delta @GetDeltaClass(GetScoreDelta())">@string.Format(T["tabs.overview.pointsValue"], FormatSigned(GetScoreDelta(), "N2"))</div>
+                    </div>
+                    <div class="overview-chart-value">@string.Format(T["tabs.overview.pointsValue"], (CurrentPoint?.Score ?? 0m).ToString("N2"))</div>
+                    @RenderChartSvg("score", ScoreSeries, "#4dd0e1", "#14535b")
+                    <div class="overview-chart-axis">
+                        <span>@GetRangeStartLabel()</span>
+                        <span>@GetRangeEndLabel()</span>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public required Player? Player { get; set; }
+
+    private bool _isLoading;
+    private string? _error;
+    private Guid? _loadedPlayerId;
+    private OverviewRange _selectedRange = OverviewRange.Month;
+    private OverviewRange _loadedRange = OverviewRange.Month;
+    private List<PlayerOverviewPoint> _points = [];
+
+    private PlayerOverviewPoint? CurrentPoint => _points.LastOrDefault();
+    private PlayerOverviewPoint? FirstPoint => _points.FirstOrDefault();
+
+    private IReadOnlyList<decimal> ResourcesSeries => _points.Select(point => point?.Oil + point?.Chips + point?.Uranium ?? 0).ToList();
+    private IReadOnlyList<decimal> ArmySeries => _points.Select(point => (decimal)point.ArmyTotal).ToList();
+    private IReadOnlyList<decimal> MoneySeries => _points.Select(point => point.Money).ToList();
+    private IReadOnlyList<decimal> ScoreSeries => _points.Select(point => point.Score).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Player == null)
+        {
+            _loadedPlayerId = null;
+            _points = [];
+            _error = null;
+            return;
+        }
+
+        if (_loadedPlayerId == Player.PlayersId && _loadedRange == _selectedRange)
+        {
+            return;
+        }
+
+        await LoadOverviewAsync();
+    }
+
+    private async Task SetRangeAsync(OverviewRange range)
+    {
+        if (_selectedRange == range)
+        {
+            return;
+        }
+
+        _selectedRange = range;
+        await LoadOverviewAsync();
+    }
+
+    private async Task LoadOverviewAsync()
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            _points = await PlayersService.GetPlayerOverviewPointsAsync(Player.PlayersId, GetLookbackDays(_selectedRange));
+            _loadedPlayerId = Player.PlayersId;
+            _loadedRange = _selectedRange;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "OverviewTab failed to load overview points for player {PlayerId} and range {Range}.", Player.PlayersId, _selectedRange);
+            _error = T["tabs.overview.error.loadFailed"];
+            _points = [];
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private static int GetLookbackDays(OverviewRange range) => range switch
+    {
+        OverviewRange.Day => 2,
+        OverviewRange.Week => 7,
+        _ => 30
+    };
+
+    private string GetRangeButtonClass(OverviewRange range)
+        => _selectedRange == range ? "active" : string.Empty;
+
+    private string GetRangeStartLabel()
+    {
+        return FirstPoint?.StatsDate.ToString("dd MMM") ?? T["tabs.overview.na"];
+    }
+
+    private string GetRangeEndLabel()
+    {
+        return CurrentPoint?.StatsDate.ToString("dd MMM") ?? T["tabs.overview.na"];
+    }
+
+    private decimal GetResourcesDelta() => GetDelta(point => point?.Oil + point?.Chips + point?.Uranium ?? 0);
+    private decimal GetArmyDelta() => GetDelta(point => point.ArmyTotal);
+    private decimal GetMoneyDelta() => GetDelta(point => point.Money);
+    private decimal GetScoreDelta() => GetDelta(point => point.Score);
+
+    private decimal GetDelta(Func<PlayerOverviewPoint, decimal> selector)
+    {
+        if (CurrentPoint == null || FirstPoint == null)
+        {
+            return 0m;
+        }
+
+        return selector(CurrentPoint) - selector(FirstPoint);
+    }
+
+    private static string GetDeltaClass(decimal delta)
+    {
+        if (delta > 0)
+        {
+            return "positive";
+        }
+
+        if (delta < 0)
+        {
+            return "negative";
+        }
+
+        return "neutral";
+    }
+
+    private static string FormatSigned(decimal value, string format)
+    {
+        if (value > 0)
+        {
+            return $"+{value.ToString(format)}";
+        }
+
+        if (value < 0)
+        {
+            return value.ToString(format);
+        }
+
+        return "0";
+    }
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+
+    private static string FormatSignedMoney(decimal value)
+    {
+        if (value > 0)
+        {
+            return $"+₿ {value:N2}";
+        }
+
+        if (value < 0)
+        {
+            return $"-₿ {Math.Abs(value):N2}";
+        }
+
+        return "₿ 0.00";
+    }
+
+    private RenderFragment RenderChartSvg(string key, IReadOnlyList<decimal> values, string lineColor, string fillColor) => @<svg class="overview-chart-svg" viewBox="0 0 100 40" preserveAspectRatio="none">
+        <defs>
+            <linearGradient id="@($"{key}-area-gradient")" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="@lineColor" stop-opacity="0.45"></stop>
+                <stop offset="100%" stop-color="@fillColor" stop-opacity="0.06"></stop>
+            </linearGradient>
+        </defs>
+        <polygon points="@BuildAreaPoints(values)" fill="@($"url(#{key}-area-gradient)")"></polygon>
+        <polyline points="@BuildLinePoints(values)" fill="none" stroke="@lineColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></polyline>
+    </svg>;
+
+    private static string BuildLinePoints(IReadOnlyList<decimal> values)
+    {
+        if (values.Count == 0)
+        {
+            return "0,20 100,20";
+        }
+
+        if (values.Count == 1)
+        {
+            return "0,20 100,20";
+        }
+
+        var min = values.Min();
+        var max = values.Max();
+        var range = max - min;
+        if (range == 0m)
+        {
+            range = 1m;
+        }
+
+        var points = new List<string>(values.Count);
+        for (var i = 0; i < values.Count; i++)
+        {
+            var x = (decimal)i / (values.Count - 1) * 100m;
+            var normalized = (values[i] - min) / range;
+            var y = 34m - normalized * 28m;
+            points.Add($"{x:0.##},{y:0.##}");
+        }
+
+        return string.Join(" ", points);
+    }
+
+    private static string BuildAreaPoints(IReadOnlyList<decimal> values)
+    {
+        var linePoints = BuildLinePoints(values);
+        return $"0,38 {linePoints} 100,38";
+    }
+
+    private enum OverviewRange
+    {
+        Day,
+        Week,
+        Month
+    }
+}

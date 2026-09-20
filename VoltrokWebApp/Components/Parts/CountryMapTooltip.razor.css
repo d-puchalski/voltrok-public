@@ -1,0 +1,247 @@
+.country-map-tooltip {
+    position: fixed;
+    left: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1200;
+    width: min(440px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.country-map-tooltip-card {
+    position: relative;
+    pointer-events: auto;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 94%, transparent);
+    border: 1px solid var(--medieval-border);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px var(--medieval-shadow);
+    color: var(--medieval-text);
+    padding: 1rem;
+    backdrop-filter: blur(12px);
+}
+
+.country-map-tooltip-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--medieval-muted);
+}
+
+.country-map-tooltip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding-right: 2.25rem;
+}
+
+.country-map-tooltip-flag-wrap {
+    width: 56px;
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--medieval-card-hover);
+    border: 1px solid var(--medieval-border);
+    flex: 0 0 auto;
+    color: var(--medieval-gold);
+}
+
+.country-map-tooltip-flag {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.country-map-tooltip-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+}
+
+.country-map-tooltip-subtitle {
+    color: var(--medieval-muted);
+    font-size: 0.88rem;
+}
+
+.country-map-tooltip-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem 1rem;
+    margin-top: 1rem;
+}
+
+.country-map-tooltip-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.86rem;
+}
+
+.country-map-tooltip-stat span {
+    color: var(--medieval-muted);
+}
+
+.country-map-tooltip-stat strong {
+    color: var(--medieval-text);
+    text-align: right;
+}
+
+.country-map-tooltip-section {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent);
+}
+
+.country-map-tooltip-section-title {
+    margin-bottom: 0.55rem;
+    color: var(--medieval-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.country-map-tooltip-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+}
+
+.country-map-tooltip-actions .btn {
+    min-height: 40px;
+    font-weight: 700;
+}
+
+.country-map-tooltip-note,
+.country-map-tooltip-feedback,
+.country-map-tooltip-confirm {
+    margin-top: 1rem;
+    padding: 0.85rem 0.9rem;
+    border-radius: 14px;
+    font-size: 0.86rem;
+}
+
+.country-map-tooltip-note {
+    background: color-mix(in srgb, var(--medieval-card-hover) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 85%, transparent);
+    color: var(--medieval-muted);
+}
+
+.country-map-tooltip-feedback.is-error,
+.country-map-tooltip-confirm {
+    background: color-mix(in srgb, #5f1c24 72%, transparent);
+    border: 1px solid color-mix(in srgb, #ff7b86 28%, transparent);
+    color: #ffd7db;
+}
+
+.country-map-tooltip-feedback.is-success,
+.country-map-tooltip-confirm-cancel {
+    background: color-mix(in srgb, #213f2d 72%, transparent);
+    border: 1px solid color-mix(in srgb, #74d38f 30%, transparent);
+    color: #d8ffe3;
+}
+
+.country-map-tooltip-confirm-copy {
+    line-height: 1.4;
+}
+
+.country-map-tooltip-confirm-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 0.8rem;
+}
+
+.country-map-tooltip-policy-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 0.75rem;
+    margin-top: 0.8rem;
+}
+
+.country-map-tooltip-policy-toggle,
+.country-map-tooltip-policy-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    padding: 0.8rem;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--medieval-card-hover) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 85%, transparent);
+}
+
+.country-map-tooltip-policy-toggle {
+    justify-content: center;
+}
+
+.country-map-tooltip-policy-toggle span,
+.country-map-tooltip-policy-input-wrap label {
+    color: var(--medieval-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.country-map-tooltip-policy-toggle .form-check-input {
+    width: 2.65rem;
+    height: 1.4rem;
+    margin: 0;
+}
+
+.country-map-tooltip-policy-input-wrap .form-control {
+    min-height: 40px;
+}
+
+.country-map-tooltip-force-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.country-map-tooltip-force-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.84rem;
+}
+
+.country-map-tooltip-force-row span {
+    color: var(--medieval-text);
+}
+
+.country-map-tooltip-force-row strong {
+    color: var(--medieval-gold);
+}
+
+.country-map-tooltip-loading {
+    color: var(--medieval-muted);
+    text-align: center;
+    padding: 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .country-map-tooltip {
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        width: auto;
+        z-index: 11020;
+    }
+
+    .country-map-tooltip-stats,
+    .country-map-tooltip-policy-grid {
+        grid-template-columns: 1fr;
+    }
+}

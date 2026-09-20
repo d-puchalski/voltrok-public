@@ -1,0 +1,100 @@
+.mobile-map-notice-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 4200;
+    background: rgba(5, 10, 24, 0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.mobile-map-notice {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 4201;
+    width: min(92vw, 28rem);
+    padding: 1.2rem 1.05rem 1rem;
+    border-radius: 18px;
+    border: 1px solid rgba(113, 172, 255, 0.28);
+    background:
+        radial-gradient(circle at top right, rgba(76, 140, 255, 0.18), transparent 40%),
+        linear-gradient(180deg, rgba(12, 22, 41, 0.98), rgba(6, 12, 24, 0.98));
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+    color: #eaf3ff;
+}
+
+.mobile-map-notice-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0.28rem 0.65rem;
+    border-radius: 999px;
+    background: rgba(95, 166, 255, 0.14);
+    border: 1px solid rgba(95, 166, 255, 0.32);
+    color: #87c4ff;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.mobile-map-notice h2 {
+    margin: 0 0 0.75rem;
+    font-family: "Cinzel", serif;
+    font-size: clamp(1.6rem, 7vw, 2.3rem);
+    line-height: 1.05;
+    color: #ffffff;
+}
+
+.mobile-map-notice p {
+    margin: 0;
+    font-size: 0.95rem;
+    line-height: 1.55;
+    color: rgba(234, 243, 255, 0.9);
+}
+
+.mobile-map-notice-note {
+    margin-top: 0.85rem !important;
+    font-size: 0.82rem !important;
+    color: rgba(185, 208, 237, 0.86) !important;
+}
+
+.mobile-map-notice-button {
+    width: 100%;
+    margin-top: 1rem;
+    padding: 0.82rem 1rem;
+    border: none;
+    border-radius: 12px;
+    background: linear-gradient(135deg, #76b4ff, #4b88ff);
+    color: #08111f;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    box-shadow: 0 12px 28px rgba(75, 136, 255, 0.28);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mobile-map-notice-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 16px 34px rgba(75, 136, 255, 0.36);
+}
+
+@media (min-width: 992px) {
+    .mobile-map-notice-backdrop,
+    .mobile-map-notice {
+        display: none;
+    }
+}
+
+@media (max-width: 575px) {
+    .mobile-map-notice {
+        width: min(94vw, 24rem);
+        padding: 1rem 0.95rem 0.95rem;
+    }
+
+    .mobile-map-notice p {
+        font-size: 0.9rem;
+    }
+}

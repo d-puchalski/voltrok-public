@@ -1,0 +1,348 @@
+@inject IJSRuntime JsRuntime
+@using VoltrokUtils.Enums
+
+@inherits AppStateComponentBase
+
+@if (IsOpen)
+{
+    <section @ref="_dockRef" class="onboarding-dock glass-panel" aria-label="@T["onboarding.badge"]">
+        <div class="onboarding-dock-header onboarding-dock-handle">
+            <div class="onboarding-heading-group">
+                <div class="onboarding-badge">@T["onboarding.badge"]</div>
+                <div class="onboarding-progress">@GetProgressLabel()</div>
+            </div>
+
+            <button type="button"
+                    class="onboarding-close-btn"
+                    @onclick="DismissAsync"
+                    aria-label="@T["onboarding.close"]"
+                    >
+                <iconify-icon icon="solar:close-circle-bold" width="22"></iconify-icon>
+            </button>
+        </div>
+
+        <div class="onboarding-dock-body">
+            <div class="onboarding-intro-card">
+                <div class="onboarding-intro-eyebrow">@T["onboarding.goal.eyebrow"]</div>
+                <h3 class="onboarding-intro-title">@T["onboarding.goal.title"]</h3>
+                <p class="onboarding-intro-description">@T["onboarding.goal.description"]</p>
+
+                <div class="onboarding-meta-grid">
+                    <div class="onboarding-meta-item">
+                        <div class="onboarding-meta-label">@T["onboarding.gameGoal.label"]</div>
+                        <div class="onboarding-meta-value">@T["onboarding.gameGoal.value"]</div>
+                    </div>
+                    <div class="onboarding-meta-item">
+                        <div class="onboarding-meta-label">@T["onboarding.seasons.label"]</div>
+                        <div class="onboarding-meta-value">@T["onboarding.seasons.value"]</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="onboarding-target-grid">
+                @foreach (var step in Steps)
+                {
+                    <button type="button"
+                            class="onboarding-target-card @GetTargetCardClass(step.Index)"
+                            @onclick="@(() => SelectStep(step.Index))">
+                                <div class="onboarding-target-icon">
+                                    <iconify-icon icon="@step.Icon" width="24"></iconify-icon>
+                                </div>
+                                <div class="onboarding-target-copy">
+                                    <div class="onboarding-target-label">@T["onboarding.stepLabel"] @step.Index</div>
+                                    <div class="onboarding-target-title">@T[step.TitleKey]</div>
+                                </div>
+                            </button>
+                        }
+            </div>
+
+            <div class="onboarding-story">
+                <h3 class="onboarding-title">@T[CurrentStep.TitleKey]</h3>
+                <p class="onboarding-description">@T[CurrentStep.DescriptionKey]</p>
+
+                <div class="onboarding-current-action">
+                    <div class="onboarding-current-action-icon">
+                        <iconify-icon icon="@CurrentStep.Icon" width="28"></iconify-icon>
+                    </div>
+                    <div>
+                        <div class="onboarding-current-action-label">@T["onboarding.stepLabel"]</div>
+                        <div class="onboarding-current-action-text">@T[CurrentStep.TitleKey]</div>
+                    </div>
+                </div>
+            </div>
+
+            @if (CurrentStep.BulletKeys.Length > 0)
+            {
+                <ul class="onboarding-bullets">
+                    @foreach (var bulletKey in CurrentStep.BulletKeys)
+                    {
+                        <li>@T[bulletKey]</li>
+                    }
+                </ul>
+            }
+
+            <div class="d-flex justify-content-between gap-2 mt-3">
+                <button type="button"
+                        class="btn btn-outline-light"
+                        @onclick="GoToPreviousStepAsync"
+                        disabled="@(_currentStepIndex <= 1)">
+                    @T["common.back"]
+                </button>
+
+                <button type="button"
+                        class="btn btn-primary"
+                        @onclick="GoToNextStepAsync">
+                    @(_currentStepIndex >= Steps.Count ? T["onboarding.finishCta"] : T["common.next"])
+                </button>
+            </div>
+        </div>
+
+    </section>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+    [Parameter] public EventCallback OnCompleted { get; set; }
+
+    private ElementReference _dockRef;
+    private bool _dragInitializedForOpen;
+
+    private int _currentStepIndex = 1;
+
+    private sealed record OnboardingStepDefinition(
+        int Index,
+        string Icon,
+        string TitleKey,
+        string DescriptionKey,
+        string[] BulletKeys,
+        string[] HighlightTargets);
+
+    private IReadOnlyList<OnboardingStepDefinition> Steps { get; } =
+    [
+        new OnboardingStepDefinition(
+            1,
+            "mdi:home-variant",
+            "onboarding.step1.title",
+            "onboarding.step1.description",
+            [],
+            ["sidebar-player"]),
+        new OnboardingStepDefinition(
+            2,
+            "mdi:flag-variant",
+            "onboarding.step2.title",
+            "onboarding.step2.description",
+            [],
+            ["sidebar-country"]),
+        new OnboardingStepDefinition(
+            3,
+            "mdi:swap-horizontal-bold",
+            "onboarding.step3.title",
+            "onboarding.step3.description",
+            [],
+            ["sidebar-trade"]),
+        new OnboardingStepDefinition(
+            4,
+            "mdi:trophy-outline",
+            "onboarding.step4.title",
+            "onboarding.step4.description",
+            [],
+            ["sidebar-ranking"]),
+        new OnboardingStepDefinition(
+            5,
+            "mdi:chat-processing-outline",
+            "onboarding.step5.title",
+            "onboarding.step5.description",
+            [],
+            ["sidebar-chat"]),
+        new OnboardingStepDefinition(
+            6,
+            "carbon:settings",
+            "onboarding.step6.title",
+            "onboarding.step6.description",
+            [],
+            ["player-overview-tab-overview"]),
+        new OnboardingStepDefinition(
+            7,
+            "solar:box-bold",
+            "onboarding.step7.title",
+            "onboarding.step7.description",
+            [],
+            ["player-overview-tab-inventory"]),
+        new OnboardingStepDefinition(
+            8,
+            "carbon:delivery-truck",
+            "onboarding.step8.title",
+            "onboarding.step8.description",
+            [],
+            ["player-overview-tab-trade"]),
+        new OnboardingStepDefinition(
+            9,
+            "carbon:bastion-host",
+            "onboarding.step9.title",
+            "onboarding.step9.description",
+            [],
+            ["player-overview-tab-military"]),
+        new OnboardingStepDefinition(
+            10,
+            "carbon:settings-adjust",
+            "onboarding.step10.title",
+            "onboarding.step10.description",
+            [],
+            ["player-overview-tab-settings"]),
+        new OnboardingStepDefinition(
+            11,
+            "solar:widget-5-bold",
+            "onboarding.step11.title",
+            "onboarding.step11.description",
+            [],
+            ["country-tab-overview"]),
+        new OnboardingStepDefinition(
+            12,
+            "solar:crown-bold",
+            "onboarding.step12.title",
+            "onboarding.step12.description",
+            [],
+            ["country-tab-council"]),
+        new OnboardingStepDefinition(
+            13,
+            "solar:wallet-money-bold",
+            "onboarding.step13.title",
+            "onboarding.step13.description",
+            [],
+            ["country-tab-treasury"]),
+        new OnboardingStepDefinition(
+            14,
+            "solar:buildings-3-bold",
+            "onboarding.step14.title",
+            "onboarding.step14.description",
+            [],
+            ["country-tab-buildings"]),
+        new OnboardingStepDefinition(
+            15,
+            "mdi:handshake-outline",
+            "onboarding.step15.title",
+            "onboarding.step15.description",
+            [],
+            ["country-tab-diplomacy"]),
+        new OnboardingStepDefinition(
+            16,
+            "solar:target-bold",
+            "onboarding.step16.title",
+            "onboarding.step16.description",
+            [],
+            ["military-action-units"]),
+        new OnboardingStepDefinition(
+            17,
+            "solar:route-bold",
+            "onboarding.step17.title",
+            "onboarding.step17.description",
+            [],
+            ["military-action-preview"]),
+        new OnboardingStepDefinition(
+            18,
+            "mdi:rocket-launch-outline",
+            "onboarding.step18.title",
+            "onboarding.step18.description",
+            [],
+            ["military-action-submit"])
+    ];
+
+    private OnboardingStepDefinition CurrentStep => Steps[Math.Clamp(_currentStepIndex - 1, 0, Steps.Count - 1)];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await RefreshOnboardingStateAsync();
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await RefreshOnboardingStateAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!IsOpen)
+        {
+            _dragInitializedForOpen = false;
+            return;
+        }
+
+        if (_dragInitializedForOpen)
+        {
+            return;
+        }
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("enableOnboardingPanelDrag", _dockRef, ".onboarding-dock-handle");
+            _dragInitializedForOpen = true;
+        }
+        catch (InvalidOperationException)
+        {
+            // JS interop can be unavailable during prerender; try again on the next render.
+        }
+    }
+
+    private async Task RefreshOnboardingStateAsync()
+    {
+        if (!IsOpen)
+        {
+            _currentStepIndex = 1;
+            AppState.SetOnboardingTargets();
+            AppState.ResetOnboardingClicks();
+            return;
+        }
+
+        _currentStepIndex = Math.Clamp(_currentStepIndex, 1, Steps.Count);
+        AppState.SetOnboardingTargets(CurrentStep.HighlightTargets);
+    }
+
+    private string GetTargetCardClass(int stepIndex)
+    {
+        if (_currentStepIndex == stepIndex)
+        {
+            return "is-active";
+        }
+
+        if (_currentStepIndex > stepIndex)
+        {
+            return "is-complete";
+        }
+
+        return string.Empty;
+    }
+
+    private string GetProgressLabel()
+        => $"{T["onboarding.stepLabel"]} {_currentStepIndex}/{Steps.Count}";
+
+    private void SelectStep(int stepIndex)
+    {
+        _currentStepIndex = Math.Clamp(stepIndex, 1, Steps.Count);
+        AppState.SetOnboardingTargets(CurrentStep.HighlightTargets);
+    }
+
+    private Task GoToPreviousStepAsync()
+    {
+        SelectStep(_currentStepIndex - 1);
+        return Task.CompletedTask;
+    }
+
+    private async Task GoToNextStepAsync()
+    {
+        if (_currentStepIndex >= Steps.Count)
+        {
+            AppState.SetOnboardingTargets();
+            await OnCompleted.InvokeAsync();
+            await OnDismiss.InvokeAsync();
+            return;
+        }
+
+        SelectStep(_currentStepIndex + 1);
+    }
+
+    private async Task DismissAsync()
+    {
+        await OnDismiss.InvokeAsync();
+    }
+}

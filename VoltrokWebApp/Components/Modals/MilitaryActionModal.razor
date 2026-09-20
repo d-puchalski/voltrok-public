@@ -1,0 +1,505 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Military
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Engines
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject PlayersService PlayersService
+@inject PlayerMilitaryTransportService MilitaryTransportService
+
+@inherits AppStateComponentBase
+
+@if (AppState.ActiveModal == ModalTypesEnum.MilitaryAction)
+{
+    <div class="info-overlay full-page">
+        <div class="info-dialog glass-panel military-action-dialog">
+            <div class="dialog-header">
+                <div class="d-flex align-items-center">
+                    <div class="military-action-header-icon">
+                        <iconify-icon icon="@GetMissionIcon()" width="22"></iconify-icon>
+                    </div>
+                    <div>
+                        <div class="text-white fw-bold">@GetMissionTitle()</div>
+                        <small class="text-muted">@T["tabs.common.target"]: @(_targetPlayer?.Name ?? T["tabs.military.loading"])</small>
+                    </div>
+                </div>
+                <div class="header-actions d-flex gap-2">
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+            </div>
+
+            <div class="dialog-body-container">
+                <div class="main-content-panel military-action-main-content">
+                    @if (_isLoading)
+                    {
+                        <div class="p-4 text-center text-muted">@T["tabs.military.loading"]</div>
+                    }
+                    else if (_sourcePlayer == null || _targetPlayer == null)
+                    {
+                        <div class="p-4 text-center text-muted">@T["modals.militaryAction.loadFailed"]</div>
+                    }
+                    else
+                    {
+                        <div class="military-action-layout">
+                            <div class="military-action-main">
+                            
+                            <section class="military-action-unit-section military-action-surface @(AppState.IsOnboardingTarget("military-action-units") ? "onboarding-highlight" : "")">
+                                <div class="military-action-section-head">
+                                    <div>
+                                        <div class="military-action-section-title">@T["modals.militaryAction.units.title"]</div>
+                                        <div class="military-action-section-copy">@T["modals.militaryAction.units.copy"]</div>
+                                    </div>
+                                    <div class="military-action-selection-badge">@string.Format(T["modals.militaryAction.units.selectedCount"], SelectedUnits.Sum(x => x.Quantity).ToString("N0"))</div>
+                                </div>
+
+                                @if (AvailableUnits.Count == 0)
+                                {
+                                    <div class="military-action-empty-state">
+                                        @T["modals.militaryAction.units.empty"]
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="military-action-grid">
+                                        @foreach (var unit in AvailableUnits)
+                                        {
+                                            <div class="military-action-card">
+                                                <div class="military-action-card-main">
+                                                    <div class="military-action-card-left">
+                                                        <div class="inventory-resource-icon-wrap military-action-icon-wrap">
+                                                            <img class="inventory-resource-icon military-action-icon" src="@GetUnitIconPath(unit.Unit.Code.ToString())" alt="@GetUnitLabel(unit.Unit.Code.ToString())" />
+                                                        </div>
+                                                        <div class="military-action-card-copy">
+                                                            <div class="military-action-title">@GetUnitLabel(unit.Unit.Code.ToString())</div>
+                                                            <div class="military-action-card-subtitle">@T["modals.militaryAction.units.owned"]: @unit.AvailableQuantity.ToString("N0")</div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="military-action-card-right">
+                                                        <div class="military-action-selected-label">@T["modals.militaryAction.units.selected"]</div>
+                                                        <div class="military-action-selected-value">@GetSelectedQuantity(unit.Unit.Code.ToString()).ToString("N0")</div>
+                                                    </div>
+                                                </div>
+
+                                                <div class="military-action-card-stats">
+                                                    <span>@T["modals.militaryAction.stats.atk"] @unit.Unit.OffensivePoints</span>
+                                                    <span>@T["modals.militaryAction.stats.def"] @unit.Unit.DefensivePoints</span>
+                                                    <span>@T["modals.militaryAction.stats.siege"] @unit.Unit.SiegePoints</span>
+                                                    <span>@T["modals.militaryAction.stats.hp"] @unit.Unit.Durability</span>
+                                                    <span>@unit.Unit.Speed km/h</span>
+                                                    @if (unit.Unit.IsDefensive)
+                                                    {
+                                                        <span>@GetDefenseScopeLabel(unit.Unit)</span>
+                                                    }
+                                                </div>
+
+                                                <div class="military-action-input-row">
+                                                    <div class="military-action-input-wrap">
+                                                        <label class="military-action-input-label">@T["modals.militaryAction.units.quantityToSend"]</label>
+                                                        <input type="number"
+                                                               class="form-control military-action-quantity-input"
+                                                               min="0"
+                                                               max="@unit.AvailableQuantity"
+                                                               value="@GetSelectedQuantity(unit.Unit.Code.ToString())"
+                                                               placeholder="0"
+                                                               @oninput="args => HandleQuantityChanged(unit.Unit.Code.ToString(), unit.AvailableQuantity, args)" />
+                                                    </div>
+
+                                                    <button type="button"
+                                                            class="btn military-action-max-btn"
+                                                            @onclick="@(() => SetUnitToMax(unit.Unit.Code.ToString(), unit.AvailableQuantity))">
+                                                        @T["modals.militaryAction.button.max"]
+                                                    </button>
+                                                </div>
+
+                                                <div class="military-action-card-footer">
+                                                    <button type="button"
+                                                            class="btn military-action-chip-btn"
+                                                            @onclick="@(() => AddUnitAmount(unit.Unit.Code.ToString(), unit.AvailableQuantity, 1))">
+                                                        +1
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn military-action-chip-btn"
+                                                            @onclick="@(() => AddUnitAmount(unit.Unit.Code.ToString(), unit.AvailableQuantity, 10))">
+                                                        +10
+                                                    </button>
+                                                    <button type="button"
+                                                            class="btn military-action-chip-btn"
+                                                            @onclick="@(() => ClearUnitSelection(unit.Unit.Code.ToString()))">
+                                                        @T["modals.militaryAction.button.clear"]
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </section>
+
+
+
+                            <section class="military-action-hero military-action-surface">
+                                <div class="military-action-hero-top">
+                                    <div>
+                                        @string.Format(T["modals.militaryAction.heroCopy"], GetMissionLabelLowercase())
+                                    </div>
+                                </div>
+
+                                <div class="military-action-route-grid">
+                                    <div class="military-action-route-card">
+                                        <span class="military-action-hero-label">@T["tabs.transports.from"]</span>
+                                        <strong>@_sourcePlayer.Name</strong>
+                                    </div>
+                                    <div class="military-action-route-card">
+                                        <span class="military-action-hero-label">@T["tabs.transports.to"]</span>
+                                        <strong>@_targetPlayer.Name</strong>
+                                    </div>
+                                    <div class="military-action-route-card">
+                                        <span class="military-action-hero-label">@T["modals.militaryAction.summary.distance"]</span>
+                                        <strong>@DistanceKm.ToString("N0") km</strong>
+                                    </div>
+                                </div>
+                            </section>
+
+                        </div>
+
+                        <div class="military-action-summary">
+                            <div class="military-action-summary-card military-action-surface">
+                                <div class="military-action-summary-title">@T["modals.militaryAction.summary.title"]</div>
+                                <div class="military-action-summary-hero">
+                                    <div class="military-action-summary-hero-value">@TotalOilCost.ToString("N2")</div>
+                                    <div class="military-action-summary-hero-label">@T["modals.militaryAction.summary.totalOilCost"]</div>
+                                </div>
+
+                                <div class="military-action-summary-list">
+                                    <div class="military-action-summary-row"><span>@T["modals.militaryAction.summary.mission"]</span><strong>@GetMissionTitle()</strong></div>
+                                    <div class="military-action-summary-row"><span>@T["modals.militaryAction.summary.selectedUnits"]</span><strong>@SelectedUnits.Sum(x => x.Quantity).ToString("N0")</strong></div>
+                                    <div class="military-action-summary-row"><span>@T["modals.militaryAction.summary.attackPower"]</span><strong>@TotalAttackPower.ToString("N0")</strong></div>
+                                    <div class="military-action-summary-row"><span>@T["modals.militaryAction.summary.distance"]</span><strong>@DistanceKm.ToString("N0") km</strong></div>
+                                    <div class="military-action-summary-row"><span>@T["modals.militaryAction.summary.oilAfterSend"]</span><strong>@RemainingOilAfterDispatch.ToString("N2")</strong></div>
+                                </div>
+                            </div>
+
+                            <div class="military-action-summary-card military-action-surface @(AppState.IsOnboardingTarget("military-action-preview") ? "onboarding-highlight" : "")">
+                                <div class="military-action-summary-title">@T["modals.militaryAction.preview.title"]</div>
+                                @if (DispatchPlans.Count == 0)
+                                {
+                                    <div class="military-action-empty">@T["modals.militaryAction.preview.empty"]</div>
+                                }
+                                else
+                                {
+                                    @foreach (var plan in DispatchPlans)
+                                    {
+                                        <div class="military-action-preview-item">
+                                            <div class="military-action-preview-head">
+                                                <strong>@string.Join(", ", plan.Selections.Select(x => $"{GetUnitLabel(x.UnitCode)} x{x.Quantity}"))</strong>
+                                            </div>
+                                            <div class="military-action-preview-grid">
+                                                <div class="military-action-preview-meta">@T["modals.militaryAction.preview.speed"]: @plan.SpeedKmh km/h</div>
+                                                <div class="military-action-preview-meta">@T["modals.militaryAction.preview.eta"]: @FormatDuration(plan.TravelTimeSeconds)</div>
+                                                <div class="military-action-preview-meta">@T["modals.militaryAction.preview.oil"]: @plan.OilCost.ToString("N2")</div>
+                                            </div>
+                                        </div>
+                                    }
+                                }
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(_error))
+                            {
+                                <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger mt-3" role="alert">
+                                    @_error
+                                </div>
+                            }
+
+                            @if (_sourcePlayer.Oil < TotalOilCost)
+                            {
+                                <div class="military-action-warning" role="alert">
+                                    @string.Format(T["modals.militaryAction.warning.notEnoughOil"], TotalOilCost.ToString("N2"), _sourcePlayer.Oil.ToString("N2"))
+                                </div>
+                            }
+
+                            @if (IsAggressiveMission && _targetHasForeignActiveSiege)
+                            {
+                                <div class="military-action-warning" role="alert">
+                                    Target player is already under siege.
+                                </div>
+                            }
+
+                            <button type="button"
+                                    class="btn btn-primary military-action-submit @(AppState.IsOnboardingTarget("military-action-submit") ? "onboarding-highlight" : "")"
+                                    disabled="@(!CanDispatch || _isSubmitting)"
+                                    @onclick="DispatchAsync">
+                                @if (_isSubmitting)
+                                {
+                                    <span>@T["modals.militaryAction.submitting"]</span>
+                                }
+                                else
+                                {
+                                    <span>@GetDispatchButtonLabel()</span>
+                                }
+                            </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private Player? _sourcePlayer;
+    private Player? _targetPlayer;
+    private Guid? _loadedSourcePlayerId;
+    private Guid? _loadedTargetPlayerId;
+    private string? _loadedMissionType;
+    private bool _isLoading;
+    private bool _isSubmitting;
+    private bool _targetHasForeignActiveSiege;
+    private string? _error;
+    private readonly Dictionary<string, int> _selectedQuantities = new(StringComparer.OrdinalIgnoreCase);
+    private bool IsAidMission => string.Equals(AppState.PendingMilitaryMissionType, PlayerMilitaryTransportMissionType.Aid.ToDbValue(), StringComparison.OrdinalIgnoreCase);
+    private bool IsAggressiveMission => string.Equals(AppState.PendingMilitaryMissionType, PlayerMilitaryTransportMissionType.Attack.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                                        || string.Equals(AppState.PendingMilitaryMissionType, PlayerMilitaryTransportMissionType.Siege.ToDbValue(), StringComparison.OrdinalIgnoreCase);
+
+    private IReadOnlyList<AvailableUnitCard> AvailableUnits => MilitaryUnitEngine.MilitaryUnitsAllData
+        .Select(unit => new AvailableUnitCard(unit, GetAvailableUnitQuantity(unit.Code.ToString())))
+        .Where(card => card.AvailableQuantity > 0)
+        .Where(card => IsAidMission ? card.Unit.IsDefensive : !card.Unit.IsDefensive)
+        .ToList();
+
+    private IReadOnlyList<MilitaryDispatchSelection> SelectedUnits => _selectedQuantities
+        .Where(entry => entry.Value > 0)
+        .Select(entry => new MilitaryDispatchSelection(entry.Key, entry.Value))
+        .OrderBy(entry => entry.UnitCode, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    private IReadOnlyList<MilitaryDispatchPlan> DispatchPlans
+        => _sourcePlayer == null || _targetPlayer == null
+            ? []
+            : MilitaryTransportService.BuildDispatchPlans(_sourcePlayer, _targetPlayer, SelectedUnits);
+
+    private decimal DistanceKm => DispatchPlans.FirstOrDefault()?.DistanceKm
+                                  ?? (_sourcePlayer != null && _targetPlayer != null
+                                      ? MilitaryTransportService.CalculateDistanceKm(_sourcePlayer, _targetPlayer)
+                                      : 0m);
+
+    private decimal TotalOilCost => DispatchPlans.Sum(plan => plan.OilCost);
+
+    private decimal RemainingOilAfterDispatch => Math.Max(0m, (_sourcePlayer?.Oil ?? 0m) - TotalOilCost);
+
+    private decimal TotalAttackPower => SelectedUnits.Sum(selection =>
+    {
+        var unit = MilitaryUnitEngine.MilitaryUnitsAllData.FirstOrDefault(x => string.Equals(x.Code.ToString(), selection.UnitCode, StringComparison.OrdinalIgnoreCase));
+        return (unit?.OffensivePoints ?? 0) * selection.Quantity;
+    });
+
+    private bool CanDispatch => SelectedUnits.Count > 0
+                                && _sourcePlayer != null
+                                && _targetPlayer != null
+                                && !_targetHasForeignActiveSiege
+                                && (_sourcePlayer.Oil >= TotalOilCost);
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsureLoadedAsync();
+        await base.OnAppStateChangedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnsureLoadedAsync();
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task EnsureLoadedAsync()
+    {
+        if (AppState.ActiveModal != ModalTypesEnum.MilitaryAction)
+        {
+            ResetState();
+            return;
+        }
+
+        var sourceId = AppState.MyPlayer?.PlayersId;
+        var targetId = AppState.PendingMilitaryDestinationId;
+
+        if (!sourceId.HasValue || !targetId.HasValue || string.IsNullOrWhiteSpace(AppState.PendingMilitaryMissionType))
+        {
+            return;
+        }
+
+        if (_loadedSourcePlayerId == sourceId && _loadedTargetPlayerId == targetId && _loadedMissionType == AppState.PendingMilitaryMissionType)
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _error = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            _sourcePlayer = await PlayersService.GetPlayerForTab(sourceId.Value, PlayerOverviewTabEnum.Military);
+            _targetPlayer = await PlayersService.GetPlayerForTab(targetId.Value, PlayerOverviewTabEnum.Trade);
+            _targetHasForeignActiveSiege = await MilitaryTransportService.HasBlockingActiveSiegeAsync(targetId.Value, sourceId.Value);
+            _selectedQuantities.Clear();
+            foreach (var unit in AvailableUnits)
+            {
+                _selectedQuantities[unit.Unit.Code.ToString()] = 0;
+            }
+
+            _loadedSourcePlayerId = sourceId;
+            _loadedTargetPlayerId = targetId;
+            _loadedMissionType = AppState.PendingMilitaryMissionType;
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void HandleQuantityChanged(string unitCode, int maxQuantity, ChangeEventArgs args)
+    {
+        var parsed = int.TryParse(args.Value?.ToString(), out var quantity) ? quantity : 0;
+        _selectedQuantities[unitCode] = Math.Clamp(parsed, 0, Math.Max(0, maxQuantity));
+    }
+
+    private void SetUnitToMax(string unitCode, int maxQuantity)
+        => _selectedQuantities[unitCode] = Math.Max(0, maxQuantity);
+
+    private void AddUnitAmount(string unitCode, int maxQuantity, int delta)
+    {
+        var current = GetSelectedQuantity(unitCode);
+        _selectedQuantities[unitCode] = Math.Clamp(current + delta, 0, Math.Max(0, maxQuantity));
+    }
+
+    private void ClearUnitSelection(string unitCode)
+        => _selectedQuantities[unitCode] = 0;
+
+    private async Task DispatchAsync()
+    {
+        if (!CanDispatch || _sourcePlayer == null || _targetPlayer == null || _isSubmitting)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        _error = null;
+
+        try
+        {
+            await MilitaryTransportService.DispatchMissionAsync(
+                _sourcePlayer.PlayersId,
+                _targetPlayer.PlayersId,
+                AppState.PendingMilitaryMissionType!,
+                SelectedUnits);
+
+            var refreshedPlayer = await PlayersService.GetPlayerForTab(_sourcePlayer.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshedPlayer != null)
+            {
+                AppState.SetMyPlayer(refreshedPlayer);
+            }
+
+            CloseModal();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryActionModal failed to dispatch mission {MissionType} from {SourcePlayerId} to {TargetPlayerId}.", AppState.PendingMilitaryMissionType, _sourcePlayer.PlayersId, _targetPlayer.PlayersId);
+            _error = ex.Message;
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        AppState.SetPendingMilitaryAction(null, null);
+        AppState.CloseModal();
+    }
+
+    private void ResetState()
+    {
+        _sourcePlayer = null;
+        _targetPlayer = null;
+        _loadedSourcePlayerId = null;
+        _loadedTargetPlayerId = null;
+        _loadedMissionType = null;
+        _selectedQuantities.Clear();
+        _targetHasForeignActiveSiege = false;
+        _error = null;
+        _isSubmitting = false;
+    }
+
+    private string GetMissionTitle() => AppState.PendingMilitaryMissionType switch
+    {
+        nameof(PlayerMilitaryTransportMissionType.Siege) => T["modals.militaryAction.mission.launchSiege"],
+        nameof(PlayerMilitaryTransportMissionType.Aid) => T["modals.militaryAction.mission.sendHelp"],
+        _ => T["modals.militaryAction.mission.launchAttack"]
+    };
+
+    private string GetMissionLabelLowercase() => AppState.PendingMilitaryMissionType switch
+    {
+        nameof(PlayerMilitaryTransportMissionType.Siege) => T["modals.militaryAction.missionLabel.siege"],
+        nameof(PlayerMilitaryTransportMissionType.Aid) => T["modals.militaryAction.missionLabel.help"],
+        _ => T["modals.militaryAction.missionLabel.attack"]
+    };
+
+    private string GetDispatchButtonLabel() => AppState.PendingMilitaryMissionType switch
+    {
+        nameof(PlayerMilitaryTransportMissionType.Siege) => T["modals.militaryAction.button.sendSiegeForce"],
+        nameof(PlayerMilitaryTransportMissionType.Aid) => T["modals.militaryAction.button.sendHelp"],
+        _ => T["modals.militaryAction.button.sendAttack"]
+    };
+
+    private string GetMissionIcon() => AppState.PendingMilitaryMissionType switch
+    {
+        nameof(PlayerMilitaryTransportMissionType.Siege) => "mdi:castle",
+        nameof(PlayerMilitaryTransportMissionType.Aid) => "solar:hand-heart-bold",
+        _ => "solar:sword-bold"
+    };
+
+    private int GetAvailableUnitQuantity(string? unitCode)
+        => _sourcePlayer?.PlayerMilitaryUnits?
+            .Where(entry => entry.Quantity > 0 && string.Equals(entry.MilitaryUnitsCode, unitCode, StringComparison.OrdinalIgnoreCase))
+            .Sum(entry => entry.Quantity) ?? 0;
+
+    private int GetSelectedQuantity(string unitCode)
+        => _selectedQuantities.TryGetValue(unitCode, out var quantity) ? quantity : 0;
+
+    private string GetUnitLabel(string? code)
+    {
+        var key = $"tabs.military.unit.label.{code?.Trim().ToLowerInvariant()}";
+        var localized = T[key];
+        return string.Equals(localized, key, StringComparison.Ordinal) ? code ?? T["modals.militaryAction.unitFallback"] : localized;
+    }
+
+    private static string GetUnitIconPath(string? unitCode)
+        => string.IsNullOrWhiteSpace(unitCode)
+            ? "/assets/icons/general/points.png"
+            : $"/assets/icons/military_units/{unitCode.Trim()}.png";
+
+    private string GetDefenseScopeLabel(MilitaryUnit unit)
+        => unit.DefensiveAgainst == null
+            ? T["modals.militaryAction.defenseScope.all"]
+            : string.Format(T["modals.militaryAction.defenseScope.onlyVs"], GetUnitLabel(unit.DefensiveAgainst.Value.ToString()));
+
+    private static string FormatDuration(int totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(1, totalSeconds));
+        if (duration.TotalHours >= 1)
+        {
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+        }
+
+        return $"{Math.Max(1, duration.Minutes)}m";
+    }
+
+    private sealed record AvailableUnitCard(MilitaryUnit Unit, int AvailableQuantity);
+}

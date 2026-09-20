@@ -1,0 +1,1066 @@
+@using System.Text.Json
+@using VoltrokEF
+@using VoltrokServices.Services.Notifications
+@using VoltrokUtils.Enums
+
+@inject NotificationService NotificationService
+
+@inherits AppStateComponentBase
+
+@if (AppState.MyPlayer is not null && _activeNotification is not null)
+{
+    <div class="notification-stage" @onclick="DismissActiveAsync">
+        <div class="notification-stage-backdrop"></div>
+
+        <div class="notification-ceremony-card @GetCeremonyClass(_activeNotification)"
+             role="dialog"
+             aria-modal="true"
+             aria-labelledby="notification-stage-title"
+             @onclick:stopPropagation="true">
+            <div class="notification-ceremony-ribbon">@GetCeremonyRibbon(_activeNotification)</div>
+
+            <button class="notification-ceremony-close"
+                    type="button"
+                    @onclick="DismissActiveAsync"
+                    title="@T["parts.notifications.close"]">
+                <iconify-icon icon="solar:close-circle-bold"></iconify-icon>
+            </button>
+
+            <div class="notification-ceremony-glow notification-ceremony-glow-a"></div>
+            <div class="notification-ceremony-glow notification-ceremony-glow-b"></div>
+
+            <div class="notification-ceremony-visual">
+                <div class="notification-ceremony-token token-a">
+                    <iconify-icon icon="@GetCeremonyAccentIcon(_activeNotification)" width="36" height="36"></iconify-icon>
+                </div>
+                <div class="notification-ceremony-token token-b">
+                    <iconify-icon icon="@GetCeremonyAccentIcon(_activeNotification)" width="28" height="28"></iconify-icon>
+                </div>
+                <div class="notification-ceremony-token token-c">
+                    <iconify-icon icon="@GetCeremonyAccentIcon(_activeNotification)" width="24" height="24"></iconify-icon>
+                </div>
+
+                <div class="notification-ceremony-emblem">
+                    <iconify-icon icon="@GetCeremonyMainIcon(_activeNotification)" width="86" height="86"></iconify-icon>
+                </div>
+
+                <div class="notification-ceremony-spark spark-a">
+                    <iconify-icon icon="mdi:star-four-points" width="18" height="18"></iconify-icon>
+                </div>
+                <div class="notification-ceremony-spark spark-b">
+                    <iconify-icon icon="mdi:star-four-points" width="14" height="14"></iconify-icon>
+                </div>
+                <div class="notification-ceremony-shadow"></div>
+            </div>
+
+            <div class="notification-ceremony-content">
+                <div class="notification-ceremony-eyebrow">@GetCeremonyEyebrow(_activeNotification)</div>
+                @if (TryGetBattleOutcome(_activeNotification, out var battleOutcomeLabel, out var battleOutcomeClass, out var battleOutcomeIcon))
+                {
+                    <div class="notification-ceremony-result @battleOutcomeClass">
+                        <iconify-icon icon="@battleOutcomeIcon" width="16" height="16"></iconify-icon>
+                        <span>@battleOutcomeLabel</span>
+                    </div>
+                }
+                <h2 class="notification-ceremony-title" id="notification-stage-title">@GetNotificationTitle(_activeNotification)</h2>
+                @if (TryBuildBattleDetails(_activeNotification, out var battleDetails))
+                {
+                    <div class="notification-detail-board notification-detail-board-battle">
+                        <div class="notification-battle-duel">
+                            <div class="notification-battle-side">
+                                <span class="notification-detail-label">@T["parts.notifications.detail.attacker"]</span>
+                                <strong>@battleDetails.AttackerName</strong>
+                            </div>
+                            <div class="notification-battle-versus">
+                                <iconify-icon icon="mdi:sword-cross" width="18" height="18"></iconify-icon>
+                            </div>
+                            <div class="notification-battle-side">
+                                <span class="notification-detail-label">@T["parts.notifications.detail.defender"]</span>
+                                <strong>@battleDetails.DefenderName</strong>
+                            </div>
+                        </div>
+
+                        <div class="notification-detail-grid">
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["parts.notifications.detail.loser"]</span>
+                                <strong>@battleDetails.LoserName</strong>
+                            </div>
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["parts.notifications.detail.yourLosses"]</span>
+                                <strong>@battleDetails.LossesText</strong>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(battleDetails.LootSummary))
+                            {
+                                <div class="notification-detail-cell notification-detail-cell-wide">
+                                    <span class="notification-detail-label">@T["modals.ranking.tab.loot"]</span>
+                                    <strong>@battleDetails.LootSummary</strong>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+                else if (TryBuildTransportDetails(_activeNotification, out var transportDetails))
+                {
+                    <div class="notification-detail-board">
+                        <div class="notification-detail-grid">
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["tabs.transports.from"]</span>
+                                <strong>@transportDetails.FromName</strong>
+                            </div>
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["tabs.transports.to"]</span>
+                                <strong>@transportDetails.ToName</strong>
+                            </div>
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["modals.trade.table.product"]</span>
+                                <strong>@transportDetails.ResourceCode</strong>
+                            </div>
+                            <div class="notification-detail-cell">
+                                <span class="notification-detail-label">@T["modals.trade.quantity"]</span>
+                                <strong>@transportDetails.QuantityText</strong>
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <p class="notification-ceremony-message">@GetNotificationMessage(_activeNotification)</p>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string LocalizationPropertyName = "_localization";
+    private const string TitleArgsPropertyName = "titleArgs";
+    private const string MessageArgsPropertyName = "messageArgs";
+    private const string NotificationKindPropertyName = "notificationKind";
+    private const string ResultPropertyName = "result";
+    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan StageDisplayDuration = TimeSpan.FromSeconds(12);
+    private const int PopupBatchSize = 4;
+    private const int FallbackUnreadLimit = 8;
+
+    private PeriodicTimer? _pollTimer;
+    private CancellationTokenSource? _pollCts;
+    private CancellationTokenSource? _displayCts;
+    private Task? _pollTask;
+    private Guid? _activePlayerId;
+    private bool _isLoaded;
+
+    private readonly List<PlayerNotification> _queuedNotifications = [];
+    private readonly HashSet<Guid> _seenNotificationIds = [];
+    private PlayerNotification? _activeNotification;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await EnsurePollingStateAsync();
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsurePollingStateAsync();
+    }
+
+    private async Task EnsurePollingStateAsync()
+    {
+        var playerId = AppState.MyPlayer?.PlayersId;
+        if (!playerId.HasValue)
+        {
+            StopPolling();
+            ResetPresentationState();
+            _activePlayerId = null;
+            _isLoaded = false;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (_isLoaded && _activePlayerId == playerId && _pollTask is { IsCompleted: false })
+        {
+            return;
+        }
+
+        StopPolling();
+        ResetPresentationState();
+        _activePlayerId = playerId;
+        _isLoaded = true;
+
+        try
+        {
+            await RefreshNotificationStateAsync(playerId.Value, claimPopups: true, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "NotificationsCenter failed initial notification refresh for player {PlayerId}.", playerId);
+            ResetPresentationState();
+        }
+
+        _pollCts = new CancellationTokenSource();
+        _pollTimer = new PeriodicTimer(PollInterval);
+        _pollTask = PollNotificationsLoopAsync(playerId.Value, _pollCts.Token);
+    }
+
+    private async Task PollNotificationsLoopAsync(Guid playerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (_pollTimer != null && await _pollTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                try
+                {
+                    await RefreshNotificationStateAsync(playerId, claimPopups: true, cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    Serilog.Log.Debug("NotificationsCenter poll refresh cancelled for player {PlayerId}.", playerId);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    Serilog.Log.Error(ex, "NotificationsCenter polling refresh failed for player {PlayerId}.", playerId);
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Serilog.Log.Debug("NotificationsCenter polling loop cancelled for player {PlayerId}.", playerId);
+        }
+    }
+
+    private async Task RefreshNotificationStateAsync(Guid playerId, bool claimPopups, CancellationToken cancellationToken)
+    {
+        var popups = claimPopups
+            ? await NotificationService.ClaimPopupNotificationsAsync(playerId, PopupBatchSize, cancellationToken)
+            : [];
+        var unreadNotifications = await NotificationService.GetRecentNotificationsAsync(
+            playerId,
+            FallbackUnreadLimit,
+            includeRead: false,
+            cancellationToken);
+
+        foreach (var popup in popups.OrderBy(p => p.CreatedAt).ThenBy(p => p.PlayerNotificationsId))
+        {
+            EnqueueNotificationIfNeeded(popup);
+        }
+
+        foreach (var unread in unreadNotifications.OrderBy(p => p.CreatedAt).ThenBy(p => p.PlayerNotificationsId))
+        {
+            EnqueueNotificationIfNeeded(unread);
+        }
+
+        await TryActivateNextNotificationAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void EnqueueNotificationIfNeeded(PlayerNotification notification)
+    {
+        if (_activeNotification?.PlayerNotificationsId == notification.PlayerNotificationsId)
+        {
+            return;
+        }
+
+        if (_seenNotificationIds.Contains(notification.PlayerNotificationsId))
+        {
+            return;
+        }
+
+        if (_queuedNotifications.Any(existing => existing.PlayerNotificationsId == notification.PlayerNotificationsId))
+        {
+            return;
+        }
+
+        _queuedNotifications.Add(notification);
+        _seenNotificationIds.Add(notification.PlayerNotificationsId);
+    }
+
+    private async Task TryActivateNextNotificationAsync()
+    {
+        if (_activeNotification is not null || _queuedNotifications.Count == 0)
+        {
+            return;
+        }
+
+        _activeNotification = _queuedNotifications[0];
+        _queuedNotifications.RemoveAt(0);
+        StartDisplayTimer(_activeNotification.PlayerNotificationsId);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void StartDisplayTimer(Guid notificationId)
+    {
+        CancelDisplayTimer();
+        _displayCts = new CancellationTokenSource();
+        _ = AutoDismissActiveAsync(notificationId, _displayCts.Token);
+    }
+
+    private async Task AutoDismissActiveAsync(Guid notificationId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(StageDisplayDuration, cancellationToken);
+            if (_activeNotification?.PlayerNotificationsId != notificationId)
+            {
+                return;
+            }
+
+            await DismissActiveAsync();
+        }
+        catch (OperationCanceledException)
+        {
+            Serilog.Log.Debug("NotificationsCenter auto-dismiss cancelled for notification {NotificationId}.", notificationId);
+        }
+    }
+
+    private async Task DismissActiveAsync()
+    {
+        if (_activeNotification is null || !_activePlayerId.HasValue)
+        {
+            return;
+        }
+
+        var dismissed = _activeNotification;
+        CancelDisplayTimer();
+        _activeNotification = null;
+
+        if (!dismissed.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(_activePlayerId.Value, dismissed.PlayerNotificationsId);
+            dismissed.IsRead = true;
+        }
+
+        await TryActivateNextNotificationAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OpenActiveAsync()
+    {
+        if (_activeNotification is null || !_activePlayerId.HasValue)
+        {
+            return;
+        }
+
+        var active = _activeNotification;
+        CancelDisplayTimer();
+        _activeNotification = null;
+
+        if (!active.IsRead)
+        {
+            await NotificationService.MarkAsReadAsync(_activePlayerId.Value, active.PlayerNotificationsId);
+            active.IsRead = true;
+        }
+
+        NavigateToNotificationDestination(active);
+        await TryActivateNextNotificationAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string FormatTimestamp(DateTime? timestampUtc)
+    {
+        if (!timestampUtc.HasValue)
+        {
+            return T["parts.notifications.na"];
+        }
+
+        var value = timestampUtc.Value;
+        if (value.Kind == DateTimeKind.Unspecified)
+        {
+            value = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+
+        return value.ToLocalTime().ToString("dd.MM HH:mm");
+    }
+
+    private string GetNotificationTitle(PlayerNotification notification) => LocalizeNotificationText(notification, true);
+
+    private string GetNotificationMessage(PlayerNotification notification) => LocalizeNotificationText(notification, false);
+
+    private string LocalizeNotificationText(PlayerNotification notification, bool useTitle)
+    {
+        var localizationKey = GetNotificationLocalizationKey(notification, useTitle);
+        if (string.IsNullOrWhiteSpace(localizationKey))
+        {
+            return string.Empty;
+        }
+
+        var localized = ResolveNotificationTemplate(localizationKey);
+        if (!TryGetLocalizationArguments(notification.DataJson, out var titleArgs, out var messageArgs))
+        {
+            return localized;
+        }
+
+        var args = useTitle ? titleArgs : messageArgs;
+        args = BuildFallbackLocalizationArguments(notification, useTitle, args);
+        if (args.Count == 0)
+        {
+            return localized;
+        }
+
+        try
+        {
+            return string.Format(localized, args.Cast<object?>().ToArray());
+        }
+        catch (FormatException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to format localized notification text.");
+            return localized;
+        }
+    }
+
+    private IReadOnlyList<string> BuildFallbackLocalizationArguments(
+        PlayerNotification notification,
+        bool useTitle,
+        IReadOnlyList<string> currentArgs)
+    {
+        if (useTitle)
+        {
+            return currentArgs;
+        }
+
+        var notificationKind = GetResolvedNotificationKind(notification);
+        return notification.Type switch
+        {
+            PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender
+                => BuildBattleLocalizationArguments(notification, notificationKind, currentArgs),
+            PlayerNotificationType.IncomingTransport when string.Equals(notificationKind, "incoming_transport_arrived", StringComparison.OrdinalIgnoreCase)
+                => BuildIncomingTransportArguments(notification, currentArgs),
+            _ => currentArgs
+        };
+    }
+
+    private IReadOnlyList<string> BuildBattleLocalizationArguments(
+        PlayerNotification notification,
+        string notificationKind,
+        IReadOnlyList<string> currentArgs)
+    {
+        var requiredArgumentCount = notificationKind.Contains("victory", StringComparison.OrdinalIgnoreCase) ? 5 : 4;
+        if (currentArgs.Count >= requiredArgumentCount)
+        {
+            return currentArgs;
+        }
+
+        var attackerName = GetNotificationDataString(notification.DataJson, "attackerPlayerName");
+        var defenderName = GetNotificationDataString(notification.DataJson, "defenderPlayerName");
+        var loserName = GetNotificationDataString(notification.DataJson, "loserPlayerName");
+
+        var losses = notification.Type == PlayerNotificationType.BattleReportAttacker
+            ? GetNotificationDataString(notification.DataJson, "attackerLosses")
+            : GetNotificationDataString(notification.DataJson, "defenderLosses");
+
+        var lootSummary = BuildLootSummaryFromNotification(notification.DataJson);
+
+        return notificationKind switch
+        {
+            "battle_report_attacker_victory" => [attackerName, defenderName, loserName, losses, lootSummary],
+            "battle_report_attacker_defeat" => [attackerName, defenderName, loserName, losses],
+            "battle_report_defender_victory" => [attackerName, defenderName, loserName, losses],
+            "battle_report_defender_defeat" => [attackerName, defenderName, loserName, losses, lootSummary],
+            _ => currentArgs
+        };
+    }
+
+    private static IReadOnlyList<string> BuildIncomingTransportArguments(
+        PlayerNotification notification,
+        IReadOnlyList<string> currentArgs)
+    {
+        if (currentArgs.Count >= 4)
+        {
+            return currentArgs;
+        }
+
+        var senderName = GetNotificationDataString(notification.DataJson, "senderPlayerName");
+        var recipientName = GetNotificationDataString(notification.DataJson, "recipientPlayerName");
+        var resourceCode = GetNotificationDataString(notification.DataJson, "resourceCode");
+        var quantity = GetNotificationDataString(notification.DataJson, "quantity");
+
+        return [senderName, recipientName, resourceCode, quantity];
+    }
+
+    private string BuildLootSummaryFromNotification(string? dataJson)
+    {
+        var parts = new List<string>();
+
+        AppendLootPart(parts, T["modals.player.detail.money"], GetNotificationDecimal(dataJson, "lootMoney"));
+        AppendLootPart(parts, T["modals.trade.resource.oil"], GetNotificationDecimal(dataJson, "lootOil"));
+        AppendLootPart(parts, T["modals.trade.resource.uranium"], GetNotificationDecimal(dataJson, "lootUranium"));
+        AppendLootPart(parts, T["modals.trade.resource.chips"], GetNotificationDecimal(dataJson, "lootChips"));
+
+        return parts.Count == 0 ? T["tabs.common.no"] : string.Join(", ", parts);
+    }
+
+    private static void AppendLootPart(List<string> parts, string label, decimal amount)
+    {
+        if (amount > 0)
+        {
+            parts.Add($"{label} {amount:0.##}");
+        }
+    }
+
+    private bool TryBuildBattleDetails(PlayerNotification notification, out BattleNotificationDetails details)
+    {
+        details = BattleNotificationDetails.Empty;
+        if (notification.Type is not (PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender))
+        {
+            return false;
+        }
+
+        var attackerName = GetNotificationDataString(notification.DataJson, "attackerPlayerName");
+        var defenderName = GetNotificationDataString(notification.DataJson, "defenderPlayerName");
+        var loserName = GetNotificationDataString(notification.DataJson, "loserPlayerName");
+        var losses = notification.Type == PlayerNotificationType.BattleReportAttacker
+            ? GetNotificationDataString(notification.DataJson, "attackerLosses")
+            : GetNotificationDataString(notification.DataJson, "defenderLosses");
+
+        var lootSummary = BuildLootSummaryFromNotification(notification.DataJson);
+        if (string.Equals(lootSummary, "None", StringComparison.OrdinalIgnoreCase))
+        {
+            lootSummary = string.Empty;
+        }
+
+        details = new BattleNotificationDetails(
+            ValueOrFallback(attackerName, T["tabs.common.unknown"]),
+            ValueOrFallback(defenderName, T["tabs.common.unknown"]),
+            ValueOrFallback(loserName, T["tabs.common.unknown"]),
+            ValueOrFallback(losses, "0"),
+            lootSummary);
+
+        return true;
+    }
+
+    private bool TryBuildTransportDetails(PlayerNotification notification, out TransportNotificationDetails details)
+    {
+        details = TransportNotificationDetails.Empty;
+        if (notification.Type is not PlayerNotificationType.IncomingTransport and not PlayerNotificationType.IncomingAid)
+        {
+            return false;
+        }
+
+        var fromName = GetNotificationDataString(notification.DataJson, "senderPlayerName");
+        var toName = GetNotificationDataString(notification.DataJson, "recipientPlayerName");
+        var resourceCode = GetNotificationDataString(notification.DataJson, "resourceCode");
+        if (string.IsNullOrWhiteSpace(resourceCode))
+        {
+            resourceCode = GetNotificationDataString(notification.DataJson, "productsCode");
+        }
+
+        var quantity = GetNotificationDataString(notification.DataJson, "quantity");
+        if (string.IsNullOrWhiteSpace(quantity))
+        {
+            quantity = GetNotificationDataString(notification.DataJson, "transportQuantity");
+        }
+
+        if (string.IsNullOrWhiteSpace(fromName)
+            && string.IsNullOrWhiteSpace(toName)
+            && string.IsNullOrWhiteSpace(resourceCode)
+            && string.IsNullOrWhiteSpace(quantity))
+        {
+            return false;
+        }
+
+        details = new TransportNotificationDetails(
+            ValueOrFallback(fromName, T["tabs.common.unknown"]),
+            ValueOrFallback(toName, T["tabs.common.unknown"]),
+            ValueOrFallback(resourceCode, T["tabs.common.unknown"]),
+            ValueOrFallback(quantity, "0"));
+
+        return true;
+    }
+
+    private static string ValueOrFallback(string? value, string fallback)
+        => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+    private string ResolveNotificationTemplate(string key)
+    {
+        foreach (var candidate in GetNotificationLocalizationKeyCandidates(key))
+        {
+            var localized = T[candidate];
+            if (!string.Equals(localized, candidate, StringComparison.Ordinal))
+            {
+                return localized;
+            }
+        }
+
+        return HumanizeNotificationKey(key);
+    }
+
+    private static IEnumerable<string> GetNotificationLocalizationKeyCandidates(string key)
+    {
+        yield return key;
+
+        var camelized = CamelizeTranslationKey(key);
+        if (!string.Equals(camelized, key, StringComparison.Ordinal))
+        {
+            yield return camelized;
+        }
+    }
+
+    private static string CamelizeTranslationKey(string key)
+    {
+        var segments = key.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0)
+        {
+            return key;
+        }
+
+        for (var i = 0; i < segments.Length; i++)
+        {
+            if (!segments[i].Contains('_', StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            segments[i] = SnakeToCamelCase(segments[i]);
+        }
+
+        return string.Join('.', segments);
+    }
+
+    private static string SnakeToCamelCase(string value)
+    {
+        var parts = value.Split('_', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 0)
+        {
+            return value;
+        }
+
+        return parts[0] + string.Concat(parts.Skip(1).Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
+    }
+
+    private static string HumanizeNotificationKey(string key)
+    {
+        var meaningfulSegment = key.Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Reverse()
+            .FirstOrDefault(segment =>
+                !string.Equals(segment, "title", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(segment, "message", StringComparison.OrdinalIgnoreCase));
+
+        if (string.IsNullOrWhiteSpace(meaningfulSegment))
+        {
+            return key;
+        }
+
+        var snake = meaningfulSegment.Replace("_", " ", StringComparison.Ordinal);
+        var spaced = System.Text.RegularExpressions.Regex.Replace(snake, "([a-z])([A-Z])", "$1 $2");
+        return string.Join(' ', spaced
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(word => char.ToUpperInvariant(word[0]) + word[1..]));
+    }
+
+    private static string GetNotificationLocalizationKey(PlayerNotification notification, bool useTitle)
+    {
+        var notificationKind = GetResolvedNotificationKind(notification);
+
+        return (notification.Type, notificationKind, useTitle) switch
+        {
+            (PlayerNotificationType.ChatMessageReceived, _, true) => "notifications.chatMessageReceived.title",
+            (PlayerNotificationType.ChatMessageReceived, _, false) => "notifications.chatMessageReceived.message",
+            (PlayerNotificationType.IncomingAttack, _, true) => "notifications.incoming_attack.title",
+            (PlayerNotificationType.IncomingAttack, _, false) => "notifications.incoming_attack.message",
+            (PlayerNotificationType.IncomingSiege, _, true) => "notifications.incoming_siege.title",
+            (PlayerNotificationType.IncomingSiege, _, false) => "notifications.incoming_siege.message",
+            (PlayerNotificationType.IncomingAid, "incoming_aid_arrived", true) => "notifications.aidArrived.title.received",
+            (PlayerNotificationType.IncomingAid, "incoming_aid_arrived", false) => "notifications.aidArrived.message.received",
+            (PlayerNotificationType.IncomingAid, "outgoing_aid_arrived", true) => "notifications.aidArrived.title.sent",
+            (PlayerNotificationType.IncomingAid, "outgoing_aid_arrived", false) => "notifications.aidArrived.message.sent",
+            (PlayerNotificationType.IncomingAid, _, true) => "notifications.incoming_aid.title",
+            (PlayerNotificationType.IncomingAid, _, false) => "notifications.incoming_aid.message",
+            (PlayerNotificationType.IncomingTransport, "incoming_transport_arrived", true) => "notifications.incomingTransport.title.arrived",
+            (PlayerNotificationType.IncomingTransport, "incoming_transport_arrived", false) => "notifications.incomingTransport.message.arrived",
+            (PlayerNotificationType.IncomingTransport, _, true) => "notifications.incomingTransport.title",
+            (PlayerNotificationType.IncomingTransport, "incoming_transport_with_products", false) => "notifications.incomingTransport.message.withProducts",
+            (PlayerNotificationType.IncomingTransport, _, false) => "notifications.incomingTransport.message.simple",
+            (PlayerNotificationType.SiegeStarted, _, true) => "notifications.siegeStarted.title",
+            (PlayerNotificationType.SiegeStarted, _, false) => "notifications.siegeStarted.message",
+            (PlayerNotificationType.SiegeFinished, _, true) => "notifications.siegeFinished.title",
+            (PlayerNotificationType.SiegeFinished, "siege_finished_attacker_shield", false) => "notifications.siegeFinished.message.attackerShield",
+            (PlayerNotificationType.SiegeFinished, "siege_finished_attacker_timeout", false) => "notifications.siegeFinished.message.attackerTimeout",
+            (PlayerNotificationType.SiegeFinished, "siege_finished_defender_shield", false) => "notifications.siegeFinished.message.defenderShield",
+            (PlayerNotificationType.SiegeFinished, "siege_finished_defender_timeout", false) => "notifications.siegeFinished.message.defenderTimeout",
+            (PlayerNotificationType.BattleReportAttacker, "siege_loot_gained", true) => "notifications.siegeLoot.title.gained",
+            (PlayerNotificationType.BattleReportAttacker, "siege_loot_gained", false) => "notifications.siegeLoot.message.gained",
+            (PlayerNotificationType.BattleReportAttacker, "battle_report_attacker_victory", true) => "notifications.battleReport.title.victory",
+            (PlayerNotificationType.BattleReportAttacker, "battle_report_attacker_victory", false) => "notifications.battleReport.attacker.message.victory",
+            (PlayerNotificationType.BattleReportAttacker, "battle_report_attacker_defeat", true) => "notifications.battleReport.title.defeat",
+            (PlayerNotificationType.BattleReportAttacker, "battle_report_attacker_defeat", false) => "notifications.battleReport.attacker.message.defeat",
+            (PlayerNotificationType.BattleReportDefender, "siege_loot_lost", true) => "notifications.siegeLoot.title.lost",
+            (PlayerNotificationType.BattleReportDefender, "siege_loot_lost", false) => "notifications.siegeLoot.message.lost",
+            (PlayerNotificationType.BattleReportDefender, "battle_report_defender_victory", true) => "notifications.battleReport.title.victory",
+            (PlayerNotificationType.BattleReportDefender, "battle_report_defender_victory", false) => "notifications.battleReport.defender.message.victory",
+            (PlayerNotificationType.BattleReportDefender, "battle_report_defender_defeat", true) => "notifications.battleReport.title.defeat",
+            (PlayerNotificationType.BattleReportDefender, "battle_report_defender_defeat", false) => "notifications.battleReport.defender.message.defeat",
+            (PlayerNotificationType.CountryWarStarted, _, true) => "notifications.countryWarStarted.title",
+            (PlayerNotificationType.CountryWarStarted, "country_war_started_defender", false) => "notifications.countryWarStarted.message.defender",
+            (PlayerNotificationType.CountryWarStarted, _, false) => "notifications.countryWarStarted.message.attacker",
+            (PlayerNotificationType.CountryWarEnded, "country_war_ended_no_defenders", true) => "notifications.countryWarEndedNoDefenders.title",
+            (PlayerNotificationType.CountryWarEnded, "country_war_ended_no_defenders", false) => "notifications.countryWarEndedNoDefenders.message",
+            (PlayerNotificationType.CountryWarEnded, "country_borders_changed", true) => "notifications.countryBordersChanged.title",
+            (PlayerNotificationType.CountryWarEnded, "country_borders_changed", false) => "notifications.countryBordersChanged.message",
+            (PlayerNotificationType.CountryWarEnded, _, true) => "notifications.countryWarPeace.title",
+            (PlayerNotificationType.CountryWarEnded, "country_war_peace_defender", false) => "notifications.countryWarPeace.message.defender",
+            (PlayerNotificationType.CountryWarEnded, _, false) => "notifications.countryWarPeace.message.attacker",
+            _ => useTitle ? $"notifications.{notification.Type}.title" : $"notifications.{notification.Type}.message"
+        };
+    }
+
+    private string GetCeremonyRibbon(PlayerNotification notification) => notification.Type switch
+    {
+        PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender => T["parts.notifications.ribbon.battle"],
+        PlayerNotificationType.IncomingAttack => T["parts.notifications.ribbon.alert"],
+            PlayerNotificationType.IncomingSiege => T["parts.notifications.ribbon.siege"],
+        PlayerNotificationType.ChatMessageReceived => T["parts.notifications.ribbon.message"],
+        PlayerNotificationType.CountryWarStarted or PlayerNotificationType.CountryWarEnded => T["parts.notifications.ribbon.country"],
+        _ => T["parts.notifications.title"]
+    };
+
+    private string GetCeremonyEyebrow(PlayerNotification notification) => notification.Type switch
+    {
+        PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender => T["parts.notifications.eyebrow.battle"],
+        PlayerNotificationType.IncomingAttack => T["parts.notifications.eyebrow.incomingAttack"],
+        PlayerNotificationType.IncomingSiege => T["parts.notifications.eyebrow.incomingSiege"],
+        PlayerNotificationType.IncomingAid => T["parts.notifications.eyebrow.incomingAid"],
+        PlayerNotificationType.ChatMessageReceived => T["parts.notifications.eyebrow.chat"],
+        PlayerNotificationType.CountryWarStarted or PlayerNotificationType.CountryWarEnded => T["parts.notifications.eyebrow.country"],
+        _ => T["parts.notifications.eyebrow.default"]
+    };
+
+    private static string GetCeremonyMainIcon(PlayerNotification notification) => notification.Type switch
+    {
+        PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender => "mdi:sword-cross",
+        PlayerNotificationType.IncomingAttack => "mdi:shield-alert",
+        PlayerNotificationType.IncomingSiege => "mdi:castle",
+        PlayerNotificationType.IncomingAid => "mdi:hand-heart",
+        PlayerNotificationType.ChatMessageReceived => "mdi:message-badge",
+        PlayerNotificationType.CountryWarStarted => "mdi:flag-variant",
+        PlayerNotificationType.CountryWarEnded => "mdi:flag-checkered",
+        _ => "mdi:star-circle"
+    };
+
+    private static string GetCeremonyAccentIcon(PlayerNotification notification) => notification.Type switch
+    {
+        PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender => "mdi:star-four-points-circle",
+        PlayerNotificationType.IncomingAttack or PlayerNotificationType.IncomingSiege => "mdi:fire",
+        PlayerNotificationType.ChatMessageReceived => "mdi:message-reply-text",
+        _ => "mdi:star-four-points"
+    };
+
+    private static string GetCeremonyClass(PlayerNotification notification) => notification.Type switch
+    {
+        PlayerNotificationType.IncomingAttack => "is-alert",
+        PlayerNotificationType.IncomingSiege => "is-siege",
+        PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender => "is-battle",
+        PlayerNotificationType.ChatMessageReceived => "is-message",
+        PlayerNotificationType.CountryWarStarted or PlayerNotificationType.CountryWarEnded => "is-country",
+        _ => "is-standard"
+    };
+
+    private bool TryGetBattleOutcome(PlayerNotification notification, out string label, out string cssClass, out string icon)
+    {
+        label = string.Empty;
+        cssClass = string.Empty;
+        icon = string.Empty;
+
+        if (notification.Type is not (PlayerNotificationType.BattleReportAttacker or PlayerNotificationType.BattleReportDefender))
+        {
+            return false;
+        }
+
+        var kind = GetResolvedNotificationKind(notification);
+        var isVictory = kind.Contains("victory", StringComparison.OrdinalIgnoreCase)
+            || kind.Contains("gained", StringComparison.OrdinalIgnoreCase);
+
+        label = isVictory ? T["notifications.battleReport.title.victory"] : T["notifications.battleReport.title.defeat"];
+        cssClass = isVictory ? "is-victory" : "is-defeat";
+        icon = isVictory ? "solar:cup-star-bold" : "solar:danger-triangle-bold";
+        return true;
+    }
+
+    private void NavigateToNotificationDestination(PlayerNotification notification)
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        if (notification.Type == PlayerNotificationType.ChatMessageReceived)
+        {
+            if (TryGetDirectChatTarget(notification, out var senderPlayerId, out var senderPlayerName))
+            {
+                AppState.OpenChat(ChatChannel.Direct, senderPlayerId, senderPlayerName);
+            }
+            else
+            {
+                AppState.OpenChat(ChatChannel.Direct);
+            }
+
+            return;
+        }
+
+        var targetTab = notification.Type switch
+        {
+            PlayerNotificationType.IncomingTransport => PlayerOverviewTabEnum.Trade,
+            PlayerNotificationType.IncomingAttack => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.IncomingSiege => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.IncomingAid => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.BattleReportAttacker => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.BattleReportDefender => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.SiegeStarted => PlayerOverviewTabEnum.Military,
+            PlayerNotificationType.SiegeFinished => PlayerOverviewTabEnum.Military,
+            _ => PlayerOverviewTabEnum.Overview
+        };
+
+        AppState.SetPlayerInfo(AppState.MyPlayer.PlayersId);
+        AppState.SetBuildingInfoTab(targetTab);
+        if (AppState.ActiveModal != ModalTypesEnum.Player)
+        {
+            AppState.OpenModal(ModalTypesEnum.Player);
+        }
+    }
+
+    private static bool TryGetDirectChatTarget(PlayerNotification notification, out Guid senderPlayerId, out string senderPlayerName)
+    {
+        senderPlayerId = Guid.Empty;
+        senderPlayerName = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(notification.DataJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(notification.DataJson);
+            if (!jsonDocument.RootElement.TryGetProperty("senderPlayerId", out var senderPlayerIdElement))
+            {
+                return false;
+            }
+
+            var senderPlayerIdRaw = senderPlayerIdElement.ValueKind == JsonValueKind.String
+                ? senderPlayerIdElement.GetString()
+                : senderPlayerIdElement.ToString();
+
+            if (!Guid.TryParse(senderPlayerIdRaw, out senderPlayerId))
+            {
+                senderPlayerId = Guid.Empty;
+                return false;
+            }
+
+            if (jsonDocument.RootElement.TryGetProperty("senderPlayerName", out var senderPlayerNameElement))
+            {
+                var parsedName = senderPlayerNameElement.GetString();
+                if (!string.IsNullOrWhiteSpace(parsedName))
+                {
+                    senderPlayerName = parsedName;
+                }
+            }
+
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to parse sender data from notification payload.");
+            return false;
+        }
+    }
+
+    private static bool TryGetLocalizationArguments(string? dataJson, out IReadOnlyList<string> titleArgs, out IReadOnlyList<string> messageArgs)
+    {
+        titleArgs = Array.Empty<string>();
+        messageArgs = Array.Empty<string>();
+
+        if (string.IsNullOrWhiteSpace(dataJson))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(dataJson);
+            if (!jsonDocument.RootElement.TryGetProperty(LocalizationPropertyName, out var localizationElement)
+                || localizationElement.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            titleArgs = ReadStringArray(localizationElement, TitleArgsPropertyName);
+            messageArgs = ReadStringArray(localizationElement, MessageArgsPropertyName);
+            return true;
+        }
+        catch (JsonException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to parse localization arguments from notification payload.");
+            return false;
+        }
+    }
+
+    private static string GetNotificationKind(string? dataJson)
+    {
+        if (string.IsNullOrWhiteSpace(dataJson))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(dataJson);
+            if (!jsonDocument.RootElement.TryGetProperty(NotificationKindPropertyName, out var notificationKindElement))
+            {
+                return string.Empty;
+            }
+
+            return notificationKindElement.ValueKind == JsonValueKind.String
+                ? notificationKindElement.GetString() ?? string.Empty
+                : notificationKindElement.ToString();
+        }
+        catch (JsonException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to parse notification kind from payload.");
+            return string.Empty;
+        }
+    }
+
+    private static string GetResolvedNotificationKind(PlayerNotification notification)
+    {
+        var notificationKind = GetNotificationKind(notification.DataJson);
+        if (!string.Equals(notificationKind, "battle_resolved", StringComparison.OrdinalIgnoreCase))
+        {
+            return notificationKind;
+        }
+
+        var battleResult = GetNotificationDataString(notification.DataJson, ResultPropertyName);
+        var attackerWon = battleResult.Contains("attacker_win", StringComparison.OrdinalIgnoreCase);
+        var defenderWon = battleResult.Contains("defender_win", StringComparison.OrdinalIgnoreCase);
+
+        return notification.Type switch
+        {
+            PlayerNotificationType.BattleReportAttacker when attackerWon => "battle_report_attacker_victory",
+            PlayerNotificationType.BattleReportAttacker when defenderWon => "battle_report_attacker_defeat",
+            PlayerNotificationType.BattleReportDefender when attackerWon => "battle_report_defender_defeat",
+            PlayerNotificationType.BattleReportDefender when defenderWon => "battle_report_defender_victory",
+            _ => notificationKind
+        };
+    }
+
+    private static string GetNotificationDataString(string? dataJson, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(dataJson))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(dataJson);
+            return jsonDocument.RootElement.TryGetProperty(propertyName, out var element)
+                ? element.ValueKind == JsonValueKind.String
+                    ? element.GetString() ?? string.Empty
+                    : element.ToString()
+                : string.Empty;
+        }
+        catch (JsonException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to parse notification string property {PropertyName}.", propertyName);
+            return string.Empty;
+        }
+    }
+
+    private static decimal GetNotificationDecimal(string? dataJson, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(dataJson))
+        {
+            return 0m;
+        }
+
+        try
+        {
+            using var jsonDocument = JsonDocument.Parse(dataJson);
+            if (!jsonDocument.RootElement.TryGetProperty(propertyName, out var element))
+            {
+                return 0m;
+            }
+
+            return element.ValueKind switch
+            {
+                JsonValueKind.Number when element.TryGetDecimal(out var value) => value,
+                JsonValueKind.String when decimal.TryParse(element.GetString(), out var value) => value,
+                _ => 0m
+            };
+        }
+        catch (JsonException ex)
+        {
+            Serilog.Log.Warning(ex, "NotificationsCenter failed to parse notification decimal property {PropertyName}.", propertyName);
+            return 0m;
+        }
+    }
+
+    private static IReadOnlyList<string> ReadStringArray(JsonElement parent, string propertyName)
+    {
+        if (!parent.TryGetProperty(propertyName, out var arrayElement) || arrayElement.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<string>();
+        }
+
+        var values = new List<string>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            values.Add(item.ValueKind == JsonValueKind.String ? item.GetString() ?? string.Empty : item.ToString());
+        }
+
+        return values;
+    }
+
+    private void ResetPresentationState()
+    {
+        CancelDisplayTimer();
+        _queuedNotifications.Clear();
+        _seenNotificationIds.Clear();
+        _activeNotification = null;
+    }
+
+    private sealed record BattleNotificationDetails(
+        string AttackerName,
+        string DefenderName,
+        string LoserName,
+        string LossesText,
+        string LootSummary)
+    {
+        public static BattleNotificationDetails Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
+    }
+
+    private sealed record TransportNotificationDetails(
+        string FromName,
+        string ToName,
+        string ResourceCode,
+        string QuantityText)
+    {
+        public static TransportNotificationDetails Empty { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty);
+    }
+
+    private void CancelDisplayTimer()
+    {
+        _displayCts?.Cancel();
+        _displayCts?.Dispose();
+        _displayCts = null;
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+        _pollTask = null;
+        CancelDisplayTimer();
+    }
+
+    public new void Dispose()
+    {
+        StopPolling();
+        base.Dispose();
+    }
+}

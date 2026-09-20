@@ -1,0 +1,12 @@
+.player-overview-detail-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.player-overview-detail-icon {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+    flex-shrink: 0;
+}

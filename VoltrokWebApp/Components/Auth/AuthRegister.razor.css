@@ -1,0 +1,165 @@
+.battle-pass-trial-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    border: 1px solid rgba(125, 220, 255, 0.34);
+    background:
+        radial-gradient(circle at top left, rgba(122, 231, 255, 0.22), transparent 36%),
+        radial-gradient(circle at right center, rgba(92, 138, 255, 0.20), transparent 42%),
+        linear-gradient(135deg, rgba(7, 17, 35, 0.94), rgba(9, 18, 34, 0.80) 58%, rgba(7, 24, 52, 0.94));
+    box-shadow:
+        0 18px 45px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    padding: 1rem 1rem 0.95rem;
+    transform: translateZ(0);
+    animation: battlePassLift 4.5s ease-in-out infinite;
+}
+
+.battle-pass-trial-card::before,
+.battle-pass-trial-card::after {
+    content: "";
+    position: absolute;
+    inset: auto;
+    pointer-events: none;
+}
+
+.battle-pass-trial-card::before {
+    width: 160px;
+    height: 160px;
+    right: -65px;
+    top: -80px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0) 72%);
+    filter: blur(6px);
+    opacity: 0.85;
+}
+
+.battle-pass-trial-card::after {
+    width: 260px;
+    height: 260px;
+    left: -120px;
+    bottom: -160px;
+    background: radial-gradient(circle, rgba(88, 197, 255, 0.18), rgba(88, 197, 255, 0) 72%);
+    filter: blur(12px);
+}
+
+.battle-pass-trial-orb,
+.battle-pass-trial-glow {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 999px;
+}
+
+.battle-pass-trial-orb {
+    width: 88px;
+    height: 88px;
+    right: 16px;
+    top: 12px;
+    background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.28) 26%, rgba(105, 220, 255, 0.15) 54%, rgba(105, 220, 255, 0.00) 100%);
+    box-shadow:
+        0 0 18px rgba(115, 226, 255, 0.34),
+        0 0 42px rgba(115, 226, 255, 0.16),
+        inset 0 1px 0 rgba(255, 255, 255, 0.26);
+    opacity: 0.95;
+}
+
+.battle-pass-trial-glow {
+    width: 220px;
+    height: 220px;
+    right: -70px;
+    top: -75px;
+    background: radial-gradient(circle, rgba(81, 218, 255, 0.18), rgba(81, 218, 255, 0) 68%);
+    filter: blur(8px);
+}
+
+.battle-pass-trial-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.9rem;
+}
+
+.battle-pass-trial-icon {
+    width: 46px;
+    height: 46px;
+    flex: 0 0 46px;
+    display: grid;
+    place-items: center;
+    border-radius: 14px;
+    color: #effcff;
+    background:
+        linear-gradient(135deg, rgba(93, 216, 255, 0.35), rgba(74, 118, 255, 0.18));
+    border: 1px solid rgba(153, 230, 255, 0.28);
+    box-shadow:
+        0 8px 22px rgba(0, 0, 0, 0.22),
+        inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.battle-pass-trial-copy-wrap {
+    min-width: 0;
+}
+
+.battle-pass-trial-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.6rem;
+    margin-bottom: 0.45rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.11);
+    border: 1px solid rgba(255, 255, 255, 0.10);
+    color: #d6f7ff;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(115, 226, 255, 0.25);
+}
+
+.battle-pass-trial-title {
+    color: #ffffff;
+    font-size: 1.02rem;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 0.35rem;
+    text-shadow: 0 0 18px rgba(93, 216, 255, 0.18);
+}
+
+.battle-pass-trial-copy {
+    color: rgba(225, 243, 255, 0.82);
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+@keyframes battlePassLift {
+    0%, 100% {
+        transform: translateY(0);
+        box-shadow:
+            0 18px 45px rgba(0, 0, 0, 0.42),
+            inset 0 1px 0 rgba(255, 255, 255, 0.10);
+    }
+    50% {
+        transform: translateY(-2px);
+        box-shadow:
+            0 22px 52px rgba(0, 0, 0, 0.46),
+            inset 0 1px 0 rgba(255, 255, 255, 0.13);
+    }
+}
+
+@media (max-width: 576px) {
+    .battle-pass-trial-card {
+        padding: 0.9rem;
+    }
+
+    .battle-pass-trial-content {
+        gap: 0.75rem;
+    }
+
+    .battle-pass-trial-title {
+        font-size: 0.98rem;
+    }
+
+    .battle-pass-trial-copy {
+        font-size: 0.88rem;
+    }
+}

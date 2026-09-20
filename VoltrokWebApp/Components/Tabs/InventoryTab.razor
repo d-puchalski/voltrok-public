@@ -1,0 +1,47 @@
+@using VoltrokEF
+@inherits AppStateComponentBase
+
+<div class="content-section inventory-root">
+    @if (Player == null)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.inventory.loading"]</p>
+        </div>
+    }
+    else
+    {
+        <div class="inventory-card-grid">
+            @foreach (var card in InventoryCards)
+            {
+                <div class="building-card-large inventory-resource-card">
+                    <div class="inventory-resource-card-top">
+                        <div class="inventory-resource-icon-wrap">
+                            <img class="inventory-resource-icon" src="@card.IconPath" alt="@card.Label" />
+                        </div>
+                        <div class="inventory-resource-kicker">@card.Kicker</div>
+                    </div>
+                    <div class="inventory-resource-title">@card.Label</div>
+                    <div class="inventory-resource-value">@card.Value</div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public required Player? Player { get; set; }
+
+    private IReadOnlyList<InventoryCardModel> InventoryCards => Player == null
+        ? []
+        :
+        [
+            new(T["tabs.inventory.kicker.balance"], T["modals.player.detail.money"], FormatMoney(Player.Money), "/assets/icons/resources/money.png"),
+            new(T["tabs.inventory.kicker.storedResource"], T["modals.trade.resource.oil"], $"{Player.Oil:N0}", "/assets/icons/resources/oil.png"),
+            new(T["tabs.inventory.kicker.storedResource"], T["modals.trade.resource.uranium"], $"{Player.Uranium:N0}", "/assets/icons/resources/uranium.png"),
+            new(T["tabs.inventory.kicker.storedResource"], T["modals.trade.resource.chips"], $"{Player.Chips:N0}", "/assets/icons/resources/chips.png")
+        ];
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+
+    private sealed record InventoryCardModel(string Kicker, string Label, string Value, string IconPath);
+}

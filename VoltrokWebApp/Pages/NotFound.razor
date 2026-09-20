@@ -1,0 +1,9 @@
+@page "/not-found"
+@using VoltrokServices.Services.Translations
+@using VoltrokWebApp.Components.Layout
+
+@inject TranslationService T
+@layout MainLayout
+
+<h3>@T["notFound.title"]</h3>
+<p>@T["notFound.description"]</p>

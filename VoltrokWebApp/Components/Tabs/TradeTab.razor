@@ -1,0 +1,808 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Premium
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject PlayersService PlayersService
+@inject PlayerTradeService PlayerTradeService
+@inject PremiumService PremiumService
+@inject IConfiguration Configuration
+
+@inherits AppStateComponentBase
+
+<div class="content-section">
+    @if (Player == null)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.trade.loading"]</p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrEmpty(_errorMessage))
+        {
+            <div class="alert alert-danger mb-4 border-0 bg-danger bg-opacity-10 text-danger" role="alert">
+                @_errorMessage
+            </div>
+        }
+
+        @if (_isLoading)
+        {
+            <div class="text-center py-4 glass-card">
+                <p class="text-muted">@T["tabs.trade.loading"]</p>
+            </div>
+        }
+        else
+        {
+            @if (IsOwner && _showNewOffer)
+            {
+                <div class="glass-card p-3 mb-4">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-5">
+                            <label class="form-label text-muted small">@T["tabs.trade.product"]</label>
+                            <select class="form-select bg-dark border-white-10 text-white" value="@_selectedProductId" @onchange="HandleProductChange">
+                                <option value="">@T["tabs.trade.selectProduct"]</option>
+                                @foreach (var item in _inventory)
+                                {
+                                    <option value="@item">@GetInventoryOptionLabel(item)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">@T["tabs.trade.quantity"]</label>
+                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="1" value="@_newQuantity" @oninput="HandleQuantityChange" />
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label text-muted small">@T["tabs.trade.pricePerUnit"]</label>
+                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="0.01" step="0.01" value="@_newPrice" @oninput="HandlePriceChange" />
+                        </div>
+                        <div class="col-12">
+                            <button class="btn btn-primary w-100" @onclick="CreateOfferAsync" disabled="@(_isSubmittingOffer || !_selectedProductId.HasValue || _newQuantity <= 0 || _newPrice <= 0)">
+                                @T["tabs.trade.addOffer"]
+                            </button>
+                        </div>
+                        @if (_inventory.Count == 0)
+                        {
+                            <div class="col-12 small text-muted">@T["tabs.trade.noInventoryProducts"]</div>
+                        }
+                    </div>
+                </div>
+            }
+
+            @if (!IsOwner)
+            {
+                <div class="content-section">
+                    <div class="section-header mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h6 class="m-0 text-white">@T["tabs.trade.availableTrades"]</h6>
+                    </div>
+                    @if (!_tradeOffers.Any())
+                    {
+                        <div class="text-muted">@T["tabs.trade.noMatchingTrades"]</div>
+                    }
+                    else
+                    {
+                        <div class="slots-horizontal-grid">
+                            @foreach (var trade in _tradeOffers)
+                            {
+                                var sellerCountryId = trade.FromPlayers?.CountriesId;
+                                var tariffPercent = sellerCountryId.HasValue && _tradePoliciesByTargetCountry.TryGetValue(sellerCountryId.Value, out var policy)
+                                    ? policy.TariffPercent
+                                    : 0m;
+                                var buyerTariffPaid = GetBuyerTariffPaid(trade, tariffPercent);
+                                <div class="building-card-large inventory-resource-card trade-resource-card">
+                                    <div class="inventory-resource-card-top trade-resource-card-top">
+                                        <div class="trade-resource-card-topline">
+                                            <div class="inventory-resource-icon-wrap">
+                                                <img class="inventory-resource-icon" src="@GetResourceIconPath(trade.ResourceCode)" alt="@GetProductLabel(trade.ResourceCode)" />
+                                            </div>
+                                            <div class="inventory-resource-kicker trade-resource-kicker-inline">@T["tabs.trade.availableTrades"]</div>
+                                        </div>
+                                        <div class="trade-resource-card-summary">
+                                            <div class="inventory-resource-title">@GetProductLabel(trade.ResourceCode)</div>
+                                            <div class="inventory-resource-value">@trade.Quantity.ToString("N0")</div>
+                                        </div>
+                                    </div>
+                                    <div class="inventory-resource-meta-list">
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["tabs.trade.pricePerUnit"]</span>
+                                            <strong>@FormatMoney(GetBuyerPricePerUnit(trade, tariffPercent))</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["modals.trade.table.deliveryTime"]</span>
+                                            <strong>@GetAvailableTradeDeliveryTimeLabel(trade)</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["modals.trade.policy.tariffAmount"]</span>
+                                            <strong>@FormatMoney(buyerTariffPaid)</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row inventory-resource-meta-row-highlight">
+                                            <span>@T["tabs.trade.total"]</span>
+                                            <strong>@FormatMoney(GetBuyerTotalPrice(trade, tariffPercent))</strong>
+                                        </div>
+                                    </div>
+                                    <button type="button"
+                                            class="btn btn-primary w-100 mt-3"
+                                            disabled="@_isBuying"
+                                            @onclick="() => BuyTradeAsync(trade)">
+                                        @T["modals.trade.buy"]
+                                    </button>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="content-section">
+                    <div class="section-header mb-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <h6 class="m-0 text-white">@T["tabs.trade.history"]</h6>
+                        <div class="d-flex flex-wrap align-items-center gap-2">
+                            <select class="form-select form-select-sm bg-dark border-white-10 text-white"
+                                    style="width: 170px;"
+                                    value="@_historyStatusFilter"
+                                    @onchange="HandleHistoryStatusFilterChange">
+                                <option value="all">@T["tabs.production.filter.allStatuses"]</option>
+                                @foreach (var status in HistoryTradeStatuses)
+                                {
+                                    <option value="@status">@GetTradeStatusLabel(status)</option>
+                                }
+                            </select>
+                            <select class="form-select form-select-sm bg-dark border-white-10 text-white"
+                                    style="width: 180px;"
+                                    value="@_historySortOption"
+                                    @onchange="HandleHistorySortOptionChange">
+                                <option value="@TradeSortOption.CreatedAtDesc">@T["tabs.trade.sort.newestFirst"]</option>
+                                <option value="@TradeSortOption.CreatedAtAsc">@T["tabs.trade.sort.oldestFirst"]</option>
+                                <option value="@TradeSortOption.PriceAsc">@T["tabs.trade.sort.priceAsc"]</option>
+                                <option value="@TradeSortOption.PriceDesc">@T["tabs.trade.sort.priceDesc"]</option>
+                                <option value="@TradeSortOption.QuantityAsc">@T["tabs.trade.sort.quantityAsc"]</option>
+                                <option value="@TradeSortOption.QuantityDesc">@T["tabs.trade.sort.quantityDesc"]</option>
+                            </select>
+                        </div>
+                    </div>
+                    @if (!_tradeHistory.Any())
+                    {
+                        <div class="text-muted">@T["tabs.trade.noMatchingHistory"]</div>
+                    }
+                    else
+                    {
+                        @if (HistoryTotalPages > 1)
+                        {
+                            var topHistoryPages = GetVisiblePageNumbers(_historyPage, HistoryTotalPages);
+                            var topHistoryShowFirst = topHistoryPages.Count > 0 && topHistoryPages[0] > 1;
+                            var topHistoryShowLast = topHistoryPages.Count > 0 && topHistoryPages[^1] < HistoryTotalPages;
+                            <div class="trade-pager mb-3">
+                                <small class="trade-pager-summary">@HistoryPageStartItem-@HistoryPageEndItem / @_historyTotalCount</small>
+                                <div class="trade-pager-controls" role="group" aria-label="@T["tabs.trade.pagination.topAriaLabel"]">
+                                    <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(1)" disabled="@(_historyPage <= 1 || _isLoading)">«</button>
+                                    <button type="button" class="trade-pager-btn" @onclick="GoToHistoryPreviousPage" disabled="@(_historyPage <= 1 || _isLoading)">‹</button>
+
+                                    @if (topHistoryShowFirst)
+                                    {
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(1)" disabled="@_isLoading">1</button>
+                                        @if (topHistoryPages[0] > 2)
+                                        {
+                                            <span class="trade-pager-dots">…</span>
+                                        }
+                                    }
+
+                                    @foreach (var pageNumber in topHistoryPages)
+                                    {
+                                        <button type="button"
+                                                class="trade-pager-btn @(pageNumber == _historyPage ? "active" : string.Empty)"
+                                                @onclick="() => GoToHistoryPage(pageNumber)"
+                                                disabled="@_isLoading">
+                                            @pageNumber
+                                        </button>
+                                    }
+
+                                    @if (topHistoryShowLast)
+                                    {
+                                        @if (topHistoryPages[^1] < HistoryTotalPages - 1)
+                                        {
+                                            <span class="trade-pager-dots">…</span>
+                                        }
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(HistoryTotalPages)" disabled="@_isLoading">@HistoryTotalPages</button>
+                                    }
+
+                                    <button type="button" class="trade-pager-btn" @onclick="GoToHistoryNextPage" disabled="@(_historyPage >= HistoryTotalPages || _isLoading)">›</button>
+                                    <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(HistoryTotalPages)" disabled="@(_historyPage >= HistoryTotalPages || _isLoading)">»</button>
+                                </div>
+                            </div>
+                        }
+
+                        <div class="slots-horizontal-grid">
+                            @foreach (var trade in _tradeHistory)
+                            {
+                                <div class="building-card-large inventory-resource-card trade-resource-card">
+                                    <div class="inventory-resource-card-top trade-resource-card-top">
+                                        <div class="trade-resource-card-topline">
+                                            <div class="inventory-resource-icon-wrap">
+                                                <img class="inventory-resource-icon" src="@GetResourceIconPath(trade.ResourceCode)" alt="@GetProductLabel(trade.ResourceCode)" />
+                                            </div>
+                                            <div class="inventory-resource-kicker trade-resource-kicker-inline">@GetTradeStatusLabel(trade.Status)</div>
+                                        </div>
+                                        <div class="trade-resource-card-summary">
+                                            <div class="inventory-resource-title">@GetProductLabel(trade.ResourceCode)</div>
+                                            <div class="inventory-resource-value">@trade.Quantity.ToString("N0")</div>
+                                        </div>
+                                    </div>
+                                    <div class="inventory-resource-meta-list">
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["tabs.transports.from"]</span>
+                                            <strong>@(trade.FromPlayers?.Name ?? "-")</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["tabs.transports.to"]</span>
+                                            <strong>@(trade.ToPlayers?.Name ?? T["tabs.trade.open"])</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row">
+                                            <span>@T["modals.trade.table.deliveryTime"]</span>
+                                            <strong>@GetTradeHistoryDeliveryTimeLabel(trade)</strong>
+                                        </div>
+                                        <div class="inventory-resource-meta-row inventory-resource-meta-row-highlight inventory-resource-meta-row-highlight-tooltip">
+                                            <span>@T["tabs.trade.total"]</span>
+                                            <strong>@FormatMoney(trade.TotalPrice)</strong>
+                                            <div class="inventory-resource-meta-tooltip" role="tooltip">
+                                                <div class="inventory-resource-meta-tooltip-row">
+                                                    <span>@T["tabs.trade.taxPaidCountry"]</span>
+                                                    <strong>@FormatMoney(GetCountryTaxPaid(trade))</strong>
+                                                </div>
+                                                <div class="inventory-resource-meta-tooltip-row">
+                                                    <span>@T["tabs.trade.netAmount"]</span>
+                                                    <strong>@FormatMoney(GetNetAmount(trade))</strong>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @if (CanCancelTrade(trade))
+                                    {
+                                        <button type="button"
+                                                class="btn btn-outline-light btn-sm mt-2"
+                                                disabled="@_isCancellingTrade"
+                                                @onclick="() => CancelTradeAsync(trade)">
+                                            @(_isCancellingTrade? T["tabs.trade.cancelling"] : T["tabs.trade.cancelOffer"])
+                                        </button>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @if (HistoryTotalPages > 1)
+                        {
+                            var bottomHistoryPages = GetVisiblePageNumbers(_historyPage, HistoryTotalPages);
+                            var bottomHistoryShowFirst = bottomHistoryPages.Count > 0 && bottomHistoryPages[0] > 1;
+                            var bottomHistoryShowLast = bottomHistoryPages.Count > 0 && bottomHistoryPages[^1] < HistoryTotalPages;
+                            <div class="trade-pager mt-3">
+                                <small class="trade-pager-summary">@HistoryPageStartItem-@HistoryPageEndItem / @_historyTotalCount</small>
+                                <div class="trade-pager-controls" role="group" aria-label="@T["tabs.trade.pagination.bottomAriaLabel"]">
+                                    <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(1)" disabled="@(_historyPage <= 1 || _isLoading)">«</button>
+                                    <button type="button" class="trade-pager-btn" @onclick="GoToHistoryPreviousPage" disabled="@(_historyPage <= 1 || _isLoading)">‹</button>
+
+                                    @if (bottomHistoryShowFirst)
+                                    {
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(1)" disabled="@_isLoading">1</button>
+                                        @if (bottomHistoryPages[0] > 2)
+                                        {
+                                            <span class="trade-pager-dots">…</span>
+                                        }
+                                    }
+
+                                    @foreach (var pageNumber in bottomHistoryPages)
+                                    {
+                                        <button type="button"
+                                                class="trade-pager-btn @(pageNumber == _historyPage ? "active" : string.Empty)"
+                                                @onclick="() => GoToHistoryPage(pageNumber)"
+                                                disabled="@_isLoading">
+                                            @pageNumber
+                                        </button>
+                                    }
+
+                                    @if (bottomHistoryShowLast)
+                                    {
+                                        @if (bottomHistoryPages[^1] < HistoryTotalPages - 1)
+                                        {
+                                            <span class="trade-pager-dots">…</span>
+                                        }
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(HistoryTotalPages)" disabled="@_isLoading">@HistoryTotalPages</button>
+                                    }
+
+                                    <button type="button" class="trade-pager-btn" @onclick="GoToHistoryNextPage" disabled="@(_historyPage >= HistoryTotalPages || _isLoading)">›</button>
+                                    <button type="button" class="trade-pager-btn" @onclick="() => GoToHistoryPage(HistoryTotalPages)" disabled="@(_historyPage >= HistoryTotalPages || _isLoading)">»</button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        }
+
+    }
+</div>
+
+@code {
+    [Parameter] public required Player? Player { get; set; }
+
+    private List<PlayerTrade> _tradeHistory = [];
+    private List<PlayerTrade> _tradeOffers = [];
+    private List<ResourceUnitsEnum> _inventory = [];
+    private string? _errorMessage;
+    private bool _isLoading;
+    private bool _isBuying;
+    private bool _isCancellingTrade;
+    private bool _isSubmittingOffer;
+    private bool _showNewOffer;
+    private ResourceUnitsEnum? _selectedProductId;
+    private decimal _newPrice = 1;
+    private string _historyStatusFilter = "all";
+    private TradeSortOption _historySortOption = TradeSortOption.CreatedAtDesc;
+    private const int TradePageSize = 12;
+    private int _historyPage = 1;
+    private int _historyTotalCount;
+    private List<string> _historyStatuses = [];
+    private decimal _buyerTransportSpeedMultiplier = 1m;
+    private readonly Dictionary<Guid, CountryTradePolicy> _tradePoliciesByTargetCountry = [];
+
+    private IEnumerable<string> HistoryTradeStatuses => _historyStatuses;
+
+    private int HistoryTotalPages => Math.Max(1, (int)Math.Ceiling((double)_historyTotalCount / TradePageSize));
+    private int HistoryPageStartItem => _historyTotalCount == 0 ? 0 : ((_historyPage - 1) * TradePageSize) + 1;
+    private int HistoryPageEndItem => _historyTotalCount == 0 ? 0 : Math.Min(((_historyPage - 1) * TradePageSize) + _tradeHistory.Count, _historyTotalCount);
+    private bool IsOwner => Player?.PlayersId != null && AppState.MyPlayer?.PlayersId == Player.PlayersId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Player?.PlayersId == null)
+        {
+            return;
+        }
+
+        await LoadTradesAsync();
+    }
+
+    private async Task LoadTradesAsync()
+    {
+        if (Player?.PlayersId == null)
+        {
+            return;
+        }
+
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _buyerTransportSpeedMultiplier = AppState.MyPlayer?.PlayersId is Guid buyerPlayerId && buyerPlayerId != Guid.Empty
+                ? await PremiumService.GetTransportSpeedMultiplierAsync(buyerPlayerId)
+                : 1m;
+
+            if (!IsOwner)
+            {
+                var offersPage = await PlayerTradeService.GetTradeListingsPagedAsync(
+                    AppState.MyPlayer?.PlayersId,
+                    1,
+                    100,
+                    "created",
+                    false,
+                    sellerPlayerId: Player.PlayersId);
+
+                _tradeOffers = offersPage.Items.ToList();
+                var outgoingPolicies = AppState.MyPlayer?.PlayersId is Guid myPlayerId && myPlayerId != Guid.Empty
+                    ? await PlayerTradeService.GetOutgoingTradePoliciesForPlayerCountryAsync(myPlayerId)
+                    : [];
+                _tradePoliciesByTargetCountry.Clear();
+                foreach (var outgoingPolicy in outgoingPolicies)
+                {
+                    _tradePoliciesByTargetCountry[outgoingPolicy.TargetCountriesId] = outgoingPolicy;
+                }
+                _tradeHistory = [];
+                _historyStatuses = [];
+                _historyTotalCount = 0;
+                _inventory = [];
+                return;
+            }
+
+            var (historySortColumn, historySortAscending) = MapSortOption(_historySortOption);
+
+            var historyPage = await PlayerTradeService.GetTradeHistoryPagedAsync(
+                Player.PlayersId,
+                _historyPage,
+                TradePageSize,
+                _historyStatusFilter,
+                historySortColumn,
+                historySortAscending);
+
+            _tradeHistory = historyPage.Items.ToList();
+            _historyTotalCount = historyPage.TotalCount;
+
+            if (_historyTotalCount > 0 && _historyPage > HistoryTotalPages)
+            {
+                _historyPage = HistoryTotalPages;
+            historyPage = await PlayerTradeService.GetTradeHistoryPagedAsync(
+                    Player.PlayersId,
+                    _historyPage,
+                    TradePageSize,
+                    _historyStatusFilter,
+                    historySortColumn,
+                    historySortAscending);
+                _tradeHistory = historyPage.Items.ToList();
+                _historyTotalCount = historyPage.TotalCount;
+            }
+
+            _historyStatuses =
+            [
+                nameof(PlayerTradeStatus.Pending),
+                nameof(PlayerTradeStatus.InTransit),
+                nameof(PlayerTradeStatus.Completed),
+                nameof(PlayerTradeStatus.Cancelled)
+            ];
+
+            if (!string.Equals(_historyStatusFilter, "all", StringComparison.OrdinalIgnoreCase)
+                && !_historyStatuses.Contains(_historyStatusFilter, StringComparer.OrdinalIgnoreCase))
+            {
+                _historyStatusFilter = "all";
+            }
+
+            if (_showNewOffer)
+            {
+                _inventory = Enum.GetValues<ResourceUnitsEnum>().ToList();
+            }
+            
+            else
+            {
+                _inventory = [];
+            }
+
+            _tradeOffers = [];
+            _tradePoliciesByTargetCountry.Clear();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "TradeTab failed to load trade data for player {PlayerId}.", Player?.PlayersId);
+            _errorMessage = T["tabs.trade.error.loadFailed"];
+            _tradeHistory = [];
+            _tradeOffers = [];
+            _tradePoliciesByTargetCountry.Clear();
+            _inventory = [];
+            _historyStatuses = [];
+            _historyTotalCount = 0;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+
+        _historyPage = Math.Clamp(_historyPage, 1, HistoryTotalPages);
+    }
+
+    private async Task BuyTradeAsync(PlayerTrade trade)
+    {
+        if (_isBuying || AppState.MyPlayer?.PlayersId == null)
+        {
+            return;
+        }
+
+        _isBuying = true;
+        _errorMessage = null;
+        try
+        {
+            await PlayerTradeService.BuyTradeAsync(trade.PlayerTradesId, AppState.MyPlayer.PlayersId);
+            await LoadTradesAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "TradeTab failed to buy trade {TradeId} for player {PlayerId}.", trade.PlayerTradesId, AppState.MyPlayer?.PlayersId);
+            _errorMessage = T["modals.trade.error.buyFailed"];
+        }
+        finally
+        {
+            _isBuying = false;
+        }
+    }
+
+    private async Task CreateOfferAsync()
+    {
+        if (_isSubmittingOffer || Player?.PlayersId == null || !_selectedProductId.HasValue)
+        {
+            return;
+        }
+
+        _isSubmittingOffer = true;
+        _errorMessage = null;
+        try
+        {
+            await PlayerTradeService.CreateResourceTradeAsync(Player.PlayersId, _selectedProductId.Value, _newQuantity, _newPrice);
+            _selectedProductId = null;
+            _newQuantity = 1;
+            _newPrice = 1;
+            await LoadTradesAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "TradeTab failed to create offer for player {PlayerId} and product {ProductId}.", Player?.PlayersId, _selectedProductId);
+            _errorMessage = T["tabs.trade.error.createFailed"];
+        }
+        finally
+        {
+            _isSubmittingOffer = false;
+        }
+    }
+
+    private bool CanCancelTrade(PlayerTrade trade)
+    => Player?.PlayersId != null
+    && trade.FromPlayersId == Player.PlayersId
+    && trade.ToPlayersId == null
+    && trade.Status == PlayerTradeStatus.Pending.ToDbValue();
+
+    private static decimal GetCountryTaxPaid(PlayerTrade trade) => Math.Max(0m, trade.CountryTaxPaid ?? 0m);
+
+    private static decimal GetGrossAmount(PlayerTrade trade) => Math.Max(0m, trade.TotalPrice);
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+    private static decimal CalculateTradeTariffPaid(decimal totalPrice, decimal tariffPercent)
+        => Math.Max(0m, Math.Round(totalPrice * (Math.Max(0m, tariffPercent) / 100m), 2, MidpointRounding.AwayFromZero));
+    private static decimal GetBuyerTariffPaid(PlayerTrade trade, decimal tariffPercent)
+        => CalculateTradeTariffPaid(trade.TotalPrice, tariffPercent);
+    private static decimal GetBuyerTotalPrice(PlayerTrade trade, decimal tariffPercent)
+        => Math.Max(0m, trade.TotalPrice + GetBuyerTariffPaid(trade, tariffPercent));
+    private static decimal GetBuyerPricePerUnit(PlayerTrade trade, decimal tariffPercent)
+        => trade.Quantity <= 0m
+            ? trade.PricePerUnit
+            : Math.Round(GetBuyerTotalPrice(trade, tariffPercent) / trade.Quantity, 2, MidpointRounding.AwayFromZero);
+    private decimal TransportSpeedKmh => Math.Max(1m, Configuration.GetValue<decimal?>("MovementSpeeds:TransportKmh") ?? 60m);
+
+    private static decimal GetNetAmount(PlayerTrade trade)
+    {
+        var gross = GetGrossAmount(trade);
+        var net = gross - GetCountryTaxPaid(trade);
+        return Math.Max(0m, net);
+    }
+
+    private string GetAvailableTradeDeliveryTimeLabel(PlayerTrade trade)
+    {
+        if (trade.FromPlayers == null || AppState.MyPlayer == null)
+        {
+            return "00:00:00";
+        }
+
+        var distanceKm = CalculateDistanceKm(
+            trade.FromPlayers.LocationY,
+            trade.FromPlayers.LocationX,
+            AppState.MyPlayer.LocationY,
+            AppState.MyPlayer.LocationX);
+
+        var travelTimeSeconds = Math.Max(60, (int)Math.Round((double)(distanceKm / Math.Max(1m, TransportSpeedKmh * _buyerTransportSpeedMultiplier) * 3600m)));
+        return FormatDurationClock(travelTimeSeconds);
+    }
+
+    private string GetTradeHistoryDeliveryTimeLabel(PlayerTrade trade)
+    {
+        if (trade.TransportEndTime > trade.TransportStartTime)
+        {
+            var seconds = string.Equals(trade.Status, PlayerTradeStatus.InTransit.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                ? Math.Max(0, (int)Math.Ceiling((trade.TransportEndTime - DateTime.UtcNow).TotalSeconds))
+                : Math.Max(0, (int)Math.Ceiling((trade.TransportEndTime - trade.TransportStartTime).TotalSeconds));
+
+            return FormatDurationClock(seconds);
+        }
+
+        if (trade.FromPlayers == null || trade.ToPlayers == null)
+        {
+            return T["tabs.trade.open"];
+        }
+
+        var distanceKm = CalculateDistanceKm(
+            trade.FromPlayers.LocationY,
+            trade.FromPlayers.LocationX,
+            trade.ToPlayers.LocationY,
+            trade.ToPlayers.LocationX);
+
+        var travelTimeSeconds = Math.Max(60, (int)Math.Round((double)(distanceKm / TransportSpeedKmh * 3600m)));
+        return FormatDurationClock(travelTimeSeconds);
+    }
+
+    private async Task CancelTradeAsync(PlayerTrade trade)
+    {
+        if (_isCancellingTrade || Player?.PlayersId == null)
+        {
+            return;
+        }
+
+        _isCancellingTrade = true;
+        _errorMessage = null;
+        try
+        {
+            await PlayerTradeService.CancelTradeAsync(trade.PlayerTradesId, Player.PlayersId);
+            await LoadTradesAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "TradeTab failed to cancel trade {TradeId} for player {PlayerId}.", trade.PlayerTradesId, Player?.PlayersId);
+            _errorMessage = T["tabs.trade.error.cancelFailed"];
+        }
+        finally
+        {
+            _isCancellingTrade = false;
+        }
+    }
+
+    private async Task ShowNewOffer()
+    {
+        _showNewOffer = true;
+        if (Player?.PlayersId != null && _inventory.Count == 0)
+        {
+            await LoadTradesAsync();
+        }
+    }
+
+    private Task HandleProductChange(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        _selectedProductId = Enum.TryParse<ResourceUnitsEnum>(value, out var productId) ? productId : null;
+        return Task.CompletedTask;
+    }
+
+    private Task HandlePriceChange(ChangeEventArgs args)
+    {
+        if (decimal.TryParse(args.Value?.ToString(), out var price))
+        {
+            _newPrice = Math.Max(0.01m, price);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleHistoryStatusFilterChange(ChangeEventArgs args)
+    {
+        _historyStatusFilter = args.Value?.ToString() ?? "all";
+        _historyPage = 1;
+        await LoadTradesAsync();
+    }
+
+    private async Task HandleHistorySortOptionChange(ChangeEventArgs args)
+    {
+        var value = args.Value?.ToString();
+        _historySortOption = Enum.TryParse<TradeSortOption>
+        (value, out var sortOption)
+        ? sortOption
+        : TradeSortOption.CreatedAtDesc;
+        _historyPage = 1;
+        await LoadTradesAsync();
+    }
+
+    private async Task GoToHistoryPage(int page)
+    {
+        var targetPage = Math.Clamp(page, 1, HistoryTotalPages);
+        if (targetPage == _historyPage)
+        {
+            return;
+        }
+
+        _historyPage = targetPage;
+        await LoadTradesAsync();
+    }
+
+    private Task GoToHistoryPreviousPage() => GoToHistoryPage(_historyPage - 1);
+    private Task GoToHistoryNextPage() => GoToHistoryPage(_historyPage + 1);
+
+    private string GetInventoryOptionLabel(ResourceUnitsEnum item)
+    => $"{GetProductLabel(item.ToString())}";
+
+    private string GetProductLabel(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            return T["tabs.trade.unknownProduct"];
+        }
+
+        return T[$"products.code.{code.Trim().ToLowerInvariant()}"];
+    }
+
+    private static string GetResourceIconPath(string? code)
+    {
+        return code?.Trim().ToLowerInvariant() switch
+        {
+            "oil" => "/assets/icons/resources/oil.png",
+            "uranium" => "/assets/icons/resources/uranium.png",
+            "chips" => "/assets/icons/resources/chips.png",
+            _ => "/assets/icons/resources/money.png"
+        };
+    }
+
+    private string GetTradeStatusLabel(string? status)
+    {
+        if (string.IsNullOrWhiteSpace(status))
+        {
+            return T["tabs.trade.status.unknown"];
+        }
+
+        return status.Trim().ToLowerInvariant() switch
+        {
+            "pending" => T["tabs.trade.status.pending"],
+            "intransit" => T["tabs.trade.status.inProgress"],
+            "in_transit" => T["tabs.trade.status.inTransit"],
+            "completed" => T["tabs.trade.status.completed"],
+            "cancelled" => T["tabs.trade.status.cancelled"],
+            _ => status
+        };
+    }
+
+    private static string FormatDurationClock(int totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        var totalHours = Math.Max(0, (int)duration.TotalHours);
+        return $"{totalHours:00}:{duration.Minutes:00}:{duration.Seconds:00}";
+    }
+
+    private static decimal CalculateDistanceKm(decimal fromLat, decimal fromLng, decimal toLat, decimal toLng)
+    {
+        const decimal earthRadiusKm = 6371m;
+        var dLat = ToRadians(toLat - fromLat);
+        var dLon = ToRadians(toLng - fromLng);
+        var lat1 = ToRadians(fromLat);
+        var lat2 = ToRadians(toLat);
+
+        var sinDlat = Math.Sin((double)dLat / 2d);
+        var sinDlon = Math.Sin((double)dLon / 2d);
+        var a = sinDlat * sinDlat + Math.Cos((double)lat1) * Math.Cos((double)lat2) * sinDlon * sinDlon;
+        var c = 2d * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1d - a));
+        return earthRadiusKm * (decimal)c;
+    }
+
+    private static decimal ToRadians(decimal degrees) => degrees * ((decimal)Math.PI / 180m);
+
+    private static (string SortColumn, bool SortAscending) MapSortOption(TradeSortOption sortOption)
+    {
+        return sortOption switch
+        {
+            TradeSortOption.CreatedAtAsc => ("created", true),
+            TradeSortOption.PriceAsc => ("price", true),
+            TradeSortOption.PriceDesc => ("price", false),
+            TradeSortOption.QuantityAsc => ("quantity", true),
+            TradeSortOption.QuantityDesc => ("quantity", false),
+            _ => ("created", false)
+        };
+    }
+
+    private static List<int>
+    GetVisiblePageNumbers(int currentPage, int totalPages)
+    {
+        if (totalPages <= 0)
+        {
+            return [];
+        }
+
+        const int radius = 2;
+        var start = Math.Max(1, currentPage - radius);
+        var end = Math.Min(totalPages, currentPage + radius);
+        var result = new List<int>
+        ();
+        for (var page = start; page <= end; page++)
+        {
+            result.Add(page);
+        }
+
+        return result;
+    }
+
+    private enum TradeSortOption
+    {
+        CreatedAtDesc,
+        CreatedAtAsc,
+        PriceAsc,
+        PriceDesc,
+        QuantityAsc,
+        QuantityDesc
+    }
+
+    private int _newQuantity = 1;
+    private Task HandleQuantityChange(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var quantity))
+        {
+            _newQuantity = Math.Max(1, quantity);
+        }
+
+        return Task.CompletedTask;
+    }
+}

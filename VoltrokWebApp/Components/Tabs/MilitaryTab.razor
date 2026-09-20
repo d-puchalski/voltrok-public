@@ -1,0 +1,1340 @@
+@using VoltrokEF
+@using VoltrokServices.Services
+@using VoltrokServices.Services.Military
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Premium
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Engines
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject PlayersService PlayersService
+@inject PlayerMilitaryTransportService PlayerMilitaryTransportService
+@inject PremiumService PremiumService
+@inject AppState AppState
+@inject TranslationService T
+
+<div class="content-section">
+    @if (Player == null)
+    {
+        <div class="text-center py-5 glass-card">
+            <p class="text-muted">@T["tabs.military.loading"]</p>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(_recruitError))
+        {
+            <div class="alert alert-danger mb-4 border-0 bg-danger bg-opacity-10 text-danger" role="alert">
+                @_recruitError
+            </div>
+        }
+
+        <div class="management-tabs mb-4">
+            <button class="management-tab @GetMilitaryTabButtonClass(MilitarySubTab.Recruitment)" @onclick="() => SetMilitaryTabAsync(MilitarySubTab.Recruitment)">
+                <iconify-icon icon="solar:shield-user-bold" class="me-2"></iconify-icon>
+                Overview
+            </button>
+            <button class="management-tab @GetMilitaryTabButtonClass(MilitarySubTab.Reports)" @onclick="() => SetMilitaryTabAsync(MilitarySubTab.Reports)">
+                <iconify-icon icon="solar:document-text-bold" class="me-2"></iconify-icon>
+                @T["tabs.military.reports"]
+            </button>
+        </div>
+
+        @if (_militaryTab == MilitarySubTab.Recruitment)
+        {
+            <MilitaryOverviewTab
+                Player="Player"
+                ActiveRecruitmentOrders="ActiveRecruitmentOrders"
+                IsRecruiting="_isRecruiting"
+                GetUnitDescription="GetUnitDescription"
+                GetUnitLabel="GetUnitLabel"
+                GetRecruitmentCost="GetRecruitmentCost"
+                CanUpgradeUnit="CanUpgradeUnit"
+                GetRecruitmentQuantity="GetRecruitmentQuantity"
+                CanAffordRecruitment="CanAffordRecruitment"
+                UnitProductionSpeedMultiplier="_unitProductionSpeedMultiplier"
+                GetRecruitmentEta="GetRecruitmentEta"
+                RecruitUnit="RecruitUnitAsync"
+                UpgradeUnit="UpgradeUnitAsync"
+                RecruitmentQuantityChanged="HandleRecruitmentQuantityChanged"
+                CancelRecruitment="CancelRecruitmentAsync" />
+        }
+
+        @if (_militaryTab == MilitarySubTab.Reports)
+        {
+            <MilitaryReportsTab
+                PlayerId="Player.PlayersId"
+                BattleFilter="_battleFilter"
+                ActiveAttackDeploymentsList="ActiveAttackDeploymentsList"
+                ActiveAidDeploymentsList="ActiveAidDeploymentsList"
+                IncomingAidList="IncomingAidList"
+                IncomingAttacksList="IncomingAttacksList"
+                ActiveDefensiveSieges="ActiveDefensiveSieges"
+                AidHistoryList="AidHistoryList"
+                AidHistoryPage="AidHistoryPage"
+                AidHistoryTotalPages="AidHistoryTotalPages"
+                AidHistoryPageStartItem="AidHistoryPageStartItem"
+                AidHistoryPageEndItem="AidHistoryPageEndItem"
+                PagedAidHistoryList="PagedAidHistoryList"
+                SiegeHistoryList="SiegeHistoryList"
+                SiegeHistoryPage="SiegeHistoryPage"
+                SiegeHistoryTotalPages="SiegeHistoryTotalPages"
+                SiegeHistoryPageStartItem="SiegeHistoryPageStartItem"
+                SiegeHistoryPageEndItem="SiegeHistoryPageEndItem"
+                PagedSiegeHistoryList="PagedSiegeHistoryList"
+                FilteredBattlesList="FilteredBattlesList"
+                FilteredBattlesPage="FilteredBattlesPage"
+                FilteredBattlesTotalPages="FilteredBattlesTotalPages"
+                FilteredBattlesPageStartItem="FilteredBattlesPageStartItem"
+                FilteredBattlesPageEndItem="FilteredBattlesPageEndItem"
+                PagedFilteredBattlesList="PagedFilteredBattlesList"
+                GetUnitLabel="GetUnitLabel"
+                GetSiegeStatusLabel="GetSiegeStatusLabel"
+                GetTransportPower="GetTransportPower"
+                GetDefenderPower="GetDefenderPower"
+                GetAttackerWinChancePercent="GetAttackerWinChancePercent"
+                GetTimeRemainingLabel="GetTimeRemainingLabel"
+                GetTransportStatusLabel="GetTransportStatusLabel"
+                GetBattleResultLabel="GetBattleResultLabel"
+                GetBattleSideResultLabel="GetBattleSideResultLabel"
+                ArchiveBattleReport="ArchiveBattleReportAsync"
+                ArchiveSiegeReport="ArchiveSiegeReportAsync"
+                ArchiveAidReport="ArchiveAidReportAsync"
+                BattleFilterChanged="HandleBattleFilterChange"
+                FirstAidHistoryPage="FirstAidHistoryPage"
+                PrevAidHistoryPage="PrevAidHistoryPage"
+                NextAidHistoryPage="NextAidHistoryPage"
+                LastAidHistoryPage="LastAidHistoryPage"
+                FirstSiegeHistoryPage="FirstSiegeHistoryPage"
+                PrevSiegeHistoryPage="PrevSiegeHistoryPage"
+                NextSiegeHistoryPage="NextSiegeHistoryPage"
+                LastSiegeHistoryPage="LastSiegeHistoryPage"
+                FirstFilteredBattlesPage="FirstFilteredBattlesPage"
+                PrevFilteredBattlesPage="PrevFilteredBattlesPage"
+                NextFilteredBattlesPage="NextFilteredBattlesPage"
+                LastFilteredBattlesPage="LastFilteredBattlesPage" />
+        }
+    }
+</div>
+@code {
+    [Parameter] public required Player? Player { get; set; }
+    [Parameter] public EventCallback<Player> OnPlayerUpdated { get; set; }
+
+    private Guid? _selectedDestinationId;
+    private Guid? _selectedCountryId;
+    private List<Player> _destinations = [];
+    private MilitarySubTab _militaryTab = MilitarySubTab.Recruitment;
+    private string _selectedMissionType = nameof(PlayerMilitaryTransportMissionType.Attack);
+    private bool _autoReturnAfterBattle = true;
+    private int _selectedUnitLevel;
+    private int _unitQuantity = 1;
+    private string _battleFilter = "all";
+    private int _aidHistoryPage = 1;
+    private string _recruitSearch = string.Empty;
+    private RecruitUnitFilter _recruitFilter = RecruitUnitFilter.All;
+    private RecruitUnitSort _recruitSort = RecruitUnitSort.CostAsc;
+    private int _recruitmentPage = 1;
+    private int _incomingAttacksPage = 1;
+    private int _visibleDeploymentsPage = 1;
+    private int _siegeHistoryPage = 1;
+    private int _filteredBattlesPage = 1;
+    private bool _isRecruiting;
+    private decimal _unitProductionSpeedMultiplier = 1m;
+    private bool _isDispatching;
+    private bool _isCancelling;
+    private bool _isUpdatingAutoReturn;
+    private Guid? _cancellingTransportId;
+    private Guid? _updatingAutoReturnTransportId;
+    private string? _dispatchError;
+    private string? _dispatchSuccess;
+    private string? _recruitError;
+    private string? _recruitSuccess;
+    private Guid? _loadedPlayerId;
+    private readonly Dictionary<MilitaryUnitsEnum, int> _militaryRecruitQuantities = new();
+
+    private List<PlayerMilitaryUnit> PlayerArmyEntries => Player?.PlayerMilitaryUnits?.ToList() ?? [];
+    private IEnumerable<CountryOption> AvailableCountries => _destinations
+        .GroupBy(d => d.CountriesId)
+        .Select(group => new CountryOption(group.Key, group.Select(x => x.Countries?.Name).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? T["modals.player.detail.country"]))
+        .OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase);
+    private IEnumerable<Player> AvailablePlayers => _destinations
+        .Where(d => d.CountriesId == _selectedCountryId)
+        .OrderBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase);
+    private bool CanSelectDestination => _selectedCountryId.HasValue;
+    private IEnumerable<PlayerMilitaryProduction> ActiveRecruitmentOrders => (Player?.PlayerMilitaryProductions ?? Enumerable.Empty<PlayerMilitaryProduction>())
+        .Where(order => order.Quantity > order.ProducedQuantity)
+        .OrderByDescending(order => order.CreatedAt);
+
+    private IEnumerable<MilitaryUnit> AvailableMilitaryUnits => MilitaryUnitEngine.MilitaryUnitsAllData;
+    private IEnumerable<MilitaryUnit> FilteredRecruitmentUnits => ApplyRecruitSort(ApplyRecruitFilter(ApplyRecruitSearch(AvailableMilitaryUnits)));
+    private List<MilitaryUnit> FilteredRecruitmentUnitsList => FilteredRecruitmentUnits.ToList();
+    private int FilteredRecruitmentUnitsCount => FilteredRecruitmentUnitsList.Count;
+    private const int RecruitmentPageSize = 12;
+    private int RecruitmentTotalPages => Math.Max(1, (int)Math.Ceiling(FilteredRecruitmentUnitsCount / (double)RecruitmentPageSize));
+    private int RecruitmentPage => Math.Max(1, Math.Min(_recruitmentPage, RecruitmentTotalPages));
+    private int RecruitmentPageStartItem => FilteredRecruitmentUnitsCount == 0 ? 0 : ((RecruitmentPage - 1) * RecruitmentPageSize) + 1;
+    private int RecruitmentPageEndItem => FilteredRecruitmentUnitsCount == 0 ? 0 : Math.Min(((RecruitmentPage - 1) * RecruitmentPageSize) + PagedRecruitmentUnits.Count, FilteredRecruitmentUnitsCount);
+    private List<MilitaryUnit> PagedRecruitmentUnits => FilteredRecruitmentUnitsList
+        .Skip((RecruitmentPage - 1) * RecruitmentPageSize)
+        .Take(RecruitmentPageSize)
+        .ToList();
+    private int PlayerSoldiers => PlayerArmyEntries.Sum(entry => entry.Quantity);
+    private PlayerMilitaryUnit? SelectedUnit => PlayerArmyEntries.FirstOrDefault(entry => entry.Level == _selectedUnitLevel);
+    private bool CanDispatchUnits => !_isDispatching
+                                     && _selectedDestinationId.HasValue
+                                     && _unitQuantity > 0
+                                     && SelectedUnit is { Quantity: > 0 }
+                                     && SelectedUnit.Quantity >= _unitQuantity;
+
+    private List<PlayerMilitaryTransport> ActiveDeploymentsList => (Player?.PlayerMilitaryTransportPlayerFroms ?? Enumerable.Empty<PlayerMilitaryTransport>())
+        .Where(t => (t.Status == PlayerTransportStatus.InProgress.ToDbValue() && t.EndTime > DateTime.UtcNow) || t.Status == PlayerTransportStatus.InSiege.ToDbValue())
+        .OrderBy(t => t.EndTime)
+        .ToList();
+
+    private List<PlayerMilitaryTransport> ActiveAttackDeploymentsList => ActiveDeploymentsList
+        .Where(t => string.Equals(t.MissionType, PlayerMilitaryTransportMissionType.Attack.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private List<PlayerMilitaryTransport> ActiveAidDeploymentsList => ActiveDeploymentsList
+        .Where(t => string.Equals(t.MissionType, PlayerMilitaryTransportMissionType.Aid.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+        .ToList();
+
+    private List<PlayerMilitaryTransport> VisibleDeploymentsList => ActiveDeploymentsList;
+    private int VisibleDeploymentsPage => Math.Max(1, Math.Min(_visibleDeploymentsPage, VisibleDeploymentsTotalPages));
+    private int VisibleDeploymentsTotalPages => Math.Max(1, (int)Math.Ceiling(VisibleDeploymentsList.Count / (double)ReportsPageSize));
+    private int VisibleDeploymentsPageStartItem => VisibleDeploymentsList.Count == 0 ? 0 : ((VisibleDeploymentsPage - 1) * ReportsPageSize) + 1;
+    private int VisibleDeploymentsPageEndItem => VisibleDeploymentsList.Count == 0 ? 0 : Math.Min(((VisibleDeploymentsPage - 1) * ReportsPageSize) + PagedVisibleDeploymentsList.Count, VisibleDeploymentsList.Count);
+    private List<PlayerMilitaryTransport> PagedVisibleDeploymentsList => VisibleDeploymentsList
+        .Skip((VisibleDeploymentsPage - 1) * ReportsPageSize)
+        .Take(ReportsPageSize)
+        .ToList();
+
+    private List<PlayerMilitaryTransport> IncomingAttacksList => (Player?.PlayerMilitaryTransportPlayerTos ?? Enumerable.Empty<PlayerMilitaryTransport>())
+        .Where(t => string.Equals(t.Status, PlayerTransportStatus.InProgress.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                    && t.EndTime > DateTime.UtcNow
+                    && string.Equals(t.MissionType, PlayerMilitaryTransportMissionType.Attack.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+        .OrderBy(t => t.EndTime)
+        .ToList();
+
+    private List<PlayerMilitaryTransport> IncomingAidList => (Player?.PlayerMilitaryTransportPlayerTos ?? Enumerable.Empty<PlayerMilitaryTransport>())
+        .Where(t => string.Equals(t.Status, PlayerTransportStatus.InProgress.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                    && t.EndTime > DateTime.UtcNow
+                    && string.Equals(t.MissionType, PlayerMilitaryTransportMissionType.Aid.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+        .OrderBy(t => t.EndTime)
+        .ToList();
+    private int IncomingAttacksPage => Math.Max(1, Math.Min(_incomingAttacksPage, IncomingAttacksTotalPages));
+    private int IncomingAttacksTotalPages => Math.Max(1, (int)Math.Ceiling(IncomingAttacksList.Count / (double)ReportsPageSize));
+    private int IncomingAttacksPageStartItem => IncomingAttacksList.Count == 0 ? 0 : ((IncomingAttacksPage - 1) * ReportsPageSize) + 1;
+    private int IncomingAttacksPageEndItem => IncomingAttacksList.Count == 0 ? 0 : Math.Min(((IncomingAttacksPage - 1) * ReportsPageSize) + PagedIncomingAttacksList.Count, IncomingAttacksList.Count);
+    private List<PlayerMilitaryTransport> PagedIncomingAttacksList => IncomingAttacksList
+        .Skip((IncomingAttacksPage - 1) * ReportsPageSize)
+        .Take(ReportsPageSize)
+        .ToList();
+
+    private int DeployedSoldiers => ActiveDeploymentsList
+        .SelectMany(t => t.PlayerMilitaryTransportUnits)
+        .Sum(unit => unit.Quantity);
+
+    private int TotalSoldiers => PlayerSoldiers + DeployedSoldiers;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        if (_loadedPlayerId != Player.PlayersId)
+        {
+            _loadedPlayerId = Player.PlayersId;
+            await LoadDestinationsAsync(Player.PlayersId);
+            ApplyPendingMilitaryAction();
+        }
+
+        _unitProductionSpeedMultiplier = await PremiumService.GetUnitProductionSpeedMultiplierAsync(Player.PlayersId);
+
+        foreach (var unit in AvailableMilitaryUnits)
+        {
+            _militaryRecruitQuantities.TryAdd(unit.Code, 1);
+        }
+
+        EnsureSelectedUnitLevel();
+    }
+
+    private void EnsureSelectedUnitLevel()
+    {
+        if (Player == null || PlayerArmyEntries.Count == 0)
+        {
+            _selectedUnitLevel = 0;
+            return;
+        }
+
+        if (PlayerArmyEntries.Any(entry => entry.Level == _selectedUnitLevel))
+        {
+            return;
+        }
+
+        _selectedUnitLevel = PlayerArmyEntries
+            .OrderBy(entry => entry.Level)
+            .Select(entry => entry.Level)
+            .FirstOrDefault();
+    }
+
+    private void ApplyPendingMilitaryAction()
+    {
+        var pendingDestination = AppState.PendingMilitaryDestinationId;
+        if (pendingDestination.HasValue)
+        {
+            var pendingTarget = _destinations.FirstOrDefault(d => d.PlayersId == pendingDestination.Value);
+            if (pendingTarget != null)
+            {
+                _selectedCountryId = pendingTarget.CountriesId;
+                _selectedDestinationId = pendingTarget.PlayersId;
+            }
+        }
+
+        if (AppState.PendingMilitaryMissionType is nameof(PlayerMilitaryTransportMissionType.Attack) or nameof(PlayerMilitaryTransportMissionType.Siege) or nameof(PlayerMilitaryTransportMissionType.Aid))
+        {
+            _selectedMissionType = AppState.PendingMilitaryMissionType;
+        }
+
+        AppState.SetPendingMilitaryAction(null, null);
+    }
+
+    private IEnumerable<PlayerSiege> ActiveDefensiveSieges => Player?.PlayerSiegePlayerTos  
+        .Where(s => s.Status == PlayerSiegesStatus.Active.ToDbValue())
+        .OrderBy(s => s.EndedAt) ?? Enumerable.Empty<PlayerSiege>();
+
+    private IEnumerable<PlayerSiege> ActiveOffensiveSieges => Player?.PlayerSiegePlayerFroms
+        .Where(s => s.Status == PlayerSiegesStatus.Active.ToDbValue())
+        .OrderBy(s => s.EndedAt) ?? Enumerable.Empty<PlayerSiege>();
+
+    private const int ReportsPageSize = 10;
+
+    private List<PlayerSiege> SiegeHistoryList => (Player?.PlayerSiegePlayerFroms ?? Enumerable.Empty<PlayerSiege>())
+        .Concat(Player?.PlayerSiegePlayerTos ?? Enumerable.Empty<PlayerSiege>())
+        .DistinctBy(s => s.PlayerSiegesId)
+        .Where(s => !s.IsArchived)
+        .OrderByDescending(s => s.StartedAt)
+        .ToList();
+
+    private List<PlayerMilitaryTransport> AidHistoryList => (Player?.PlayerMilitaryTransportPlayerFroms ?? Enumerable.Empty<PlayerMilitaryTransport>())
+        .Concat(Player?.PlayerMilitaryTransportPlayerTos ?? Enumerable.Empty<PlayerMilitaryTransport>())
+        .Where(t => string.Equals(t.MissionType, PlayerMilitaryTransportMissionType.Aid.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(t.Status, "completed", StringComparison.OrdinalIgnoreCase)
+                    && !t.IsArchived)
+        .DistinctBy(t => t.PlayerMilitaryTransportsId)
+        .OrderByDescending(t => t.EndTime)
+        .ToList();
+
+    private List<PlayerBattleReport> AllBattlesList => (Player?.PlayerBattleReportPlayerFroms ?? Enumerable.Empty<PlayerBattleReport>())
+        .Concat(Player?.PlayerBattleReportPlayerTos ?? Enumerable.Empty<PlayerBattleReport>())
+        .DistinctBy(r => r.PlayerBattleReportsId)
+        .OrderByDescending(r => r.EndedAt)
+        .ToList();
+
+    private List<PlayerBattleReport> RecentBattlesList => AllBattlesList
+        .Where(r => !r.IsArchived)
+        .ToList();
+
+    private List<PlayerBattleReport> ArchivedBattlesList => AllBattlesList
+        .Where(r => r.IsArchived)
+        .ToList();
+
+    private List<PlayerBattleReport> FilteredBattlesList => _battleFilter switch
+    {
+        "won" => RecentBattlesList.Where(DidPlayerWin).ToList(),
+        "lost" => RecentBattlesList.Where(battle => !DidPlayerWin(battle)).ToList(),
+        "archived" => ArchivedBattlesList,
+        _ => RecentBattlesList
+    };
+
+    private int SiegeHistoryPage => Math.Max(1, Math.Min(_siegeHistoryPage, SiegeHistoryTotalPages));
+    private int SiegeHistoryTotalPages => Math.Max(1, (int)Math.Ceiling(SiegeHistoryList.Count / (double)ReportsPageSize));
+    private int SiegeHistoryPageStartItem => SiegeHistoryList.Count == 0 ? 0 : ((SiegeHistoryPage - 1) * ReportsPageSize) + 1;
+    private int SiegeHistoryPageEndItem => SiegeHistoryList.Count == 0 ? 0 : Math.Min(((SiegeHistoryPage - 1) * ReportsPageSize) + PagedSiegeHistoryList.Count, SiegeHistoryList.Count);
+    private List<PlayerSiege> PagedSiegeHistoryList => SiegeHistoryList
+        .Skip((SiegeHistoryPage - 1) * ReportsPageSize)
+        .Take(ReportsPageSize)
+        .ToList();
+
+    private int AidHistoryPage => Math.Max(1, Math.Min(_aidHistoryPage, AidHistoryTotalPages));
+    private int AidHistoryTotalPages => Math.Max(1, (int)Math.Ceiling(AidHistoryList.Count / (double)ReportsPageSize));
+    private int AidHistoryPageStartItem => AidHistoryList.Count == 0 ? 0 : ((AidHistoryPage - 1) * ReportsPageSize) + 1;
+    private int AidHistoryPageEndItem => AidHistoryList.Count == 0 ? 0 : Math.Min(((AidHistoryPage - 1) * ReportsPageSize) + PagedAidHistoryList.Count, AidHistoryList.Count);
+    private List<PlayerMilitaryTransport> PagedAidHistoryList => AidHistoryList
+        .Skip((AidHistoryPage - 1) * ReportsPageSize)
+        .Take(ReportsPageSize)
+        .ToList();
+
+    private int FilteredBattlesPage => Math.Max(1, Math.Min(_filteredBattlesPage, FilteredBattlesTotalPages));
+    private int FilteredBattlesTotalPages => Math.Max(1, (int)Math.Ceiling(FilteredBattlesList.Count / (double)ReportsPageSize));
+    private int FilteredBattlesPageStartItem => FilteredBattlesList.Count == 0 ? 0 : ((FilteredBattlesPage - 1) * ReportsPageSize) + 1;
+    private int FilteredBattlesPageEndItem => FilteredBattlesList.Count == 0 ? 0 : Math.Min(((FilteredBattlesPage - 1) * ReportsPageSize) + PagedFilteredBattlesList.Count, FilteredBattlesList.Count);
+    private List<PlayerBattleReport> PagedFilteredBattlesList => FilteredBattlesList
+        .Skip((FilteredBattlesPage - 1) * ReportsPageSize)
+        .Take(ReportsPageSize)
+        .ToList();
+
+    private string GetBattleResultLabel(PlayerBattleReport battle)
+        => DidPlayerWin(battle) ? T["tabs.military.battleResult.victory"] : T["tabs.military.battleResult.defeat"];
+
+    private string GetBattleBadgeClass(PlayerBattleReport battle)
+    {
+        var isAttacker = Player?.PlayersId == battle.PlayerFromId;
+        var attackerWon = battle.Result.Contains("attacker_win", StringComparison.OrdinalIgnoreCase);
+        var playerWon = (isAttacker && attackerWon) || (!isAttacker && !attackerWon);
+        return playerWon ? "bg-success" : "bg-danger";
+    }
+
+    private string GetBattleSideResultLabel(PlayerBattleReport battle, bool forAttacker)
+    {
+        var attackerWon = battle.Result.Contains("attacker_win", StringComparison.OrdinalIgnoreCase);
+        if (forAttacker)
+        {
+            return attackerWon ? T["tabs.military.battleResult.victory"] : T["tabs.military.battleResult.defeat"];
+        }
+
+        return attackerWon ? T["tabs.military.battleResult.defeat"] : T["tabs.military.battleResult.victory"];
+    }
+
+    private bool DidPlayerWin(PlayerBattleReport battle)
+    {
+        var isAttacker = Player?.PlayersId == battle.PlayerFromId;
+        var attackerWon = battle.Result.Contains("attacker_win", StringComparison.OrdinalIgnoreCase);
+        return (isAttacker && attackerWon) || (!isAttacker && !attackerWon);
+    }
+
+    private async Task LoadDestinationsAsync(Guid playerId)
+    {
+        _destinations = await PlayersService.GetMilitaryDestinationsAsync(playerId, _selectedMissionType);
+        _selectedCountryId = null;
+        _selectedDestinationId = null;
+
+        if (_destinations.Count > 0)
+        {
+            var defaultCountryId = AvailableCountries.FirstOrDefault().CountryId;
+            if (defaultCountryId != Guid.Empty)
+            {
+                _selectedCountryId = defaultCountryId;
+            }
+        }
+    }
+
+    private Task HandleMissionTypeChange(ChangeEventArgs args)
+    {
+        _selectedMissionType = args.Value?.ToString()?.Trim() ?? nameof(PlayerMilitaryTransportMissionType.Attack);
+        return Task.CompletedTask;
+    }
+
+    private async Task SetMilitaryTabAsync(MilitarySubTab tab)
+    {
+        _militaryTab = tab;
+        _recruitmentPage = 1;
+        _incomingAttacksPage = 1;
+        _visibleDeploymentsPage = 1;
+        _aidHistoryPage = 1;
+        _siegeHistoryPage = 1;
+        _filteredBattlesPage = 1;
+
+        if (Player != null)
+        {
+            await LoadDestinationsAsync(Player.PlayersId);
+        }
+    }
+
+    private string GetMilitaryTabButtonClass(MilitarySubTab tab)
+        => _militaryTab == tab ? "active" : string.Empty;
+
+    private string GetCurrentMissionLabel() => T["tabs.common.attack"];
+
+    private Task FirstAidHistoryPage() { _aidHistoryPage = 1; return Task.CompletedTask; }
+    private Task PrevAidHistoryPage() { _aidHistoryPage = Math.Max(1, AidHistoryPage - 1); return Task.CompletedTask; }
+    private Task NextAidHistoryPage() { _aidHistoryPage = Math.Min(AidHistoryTotalPages, AidHistoryPage + 1); return Task.CompletedTask; }
+    private Task LastAidHistoryPage() { _aidHistoryPage = AidHistoryTotalPages; return Task.CompletedTask; }
+
+    private Task HandleCountryChange(ChangeEventArgs args)
+    {
+        _selectedCountryId = Guid.TryParse(args.Value?.ToString(), out var countryId) ? countryId : null;
+        _selectedDestinationId = null;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleDestinationChange(ChangeEventArgs args)
+    {
+        _selectedDestinationId = Guid.TryParse(args.Value?.ToString(), out var destinationId) ? destinationId : null;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleUnitLevelChange(ChangeEventArgs args)
+    {
+        _selectedUnitLevel = int.TryParse(args.Value?.ToString(), out var level) ? Math.Max(1, level) : 1;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleUnitQuantityChange(ChangeEventArgs args)
+    {
+        _unitQuantity = int.TryParse(args.Value?.ToString(), out var quantity) ? Math.Max(1, quantity) : 1;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleAutoReturnChanged(ChangeEventArgs args)
+    {
+        _autoReturnAfterBattle = args.Value is bool value && value;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleBattleFilterChange(ChangeEventArgs args)
+    {
+        _battleFilter = args.Value?.ToString()?.Trim().ToLowerInvariant() ?? "all";
+        _filteredBattlesPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevSiegeHistoryPage()
+    {
+        _siegeHistoryPage = Math.Max(1, SiegeHistoryPage - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task FirstSiegeHistoryPage()
+    {
+        _siegeHistoryPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task NextSiegeHistoryPage()
+    {
+        _siegeHistoryPage = Math.Min(SiegeHistoryTotalPages, SiegeHistoryPage + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastSiegeHistoryPage()
+    {
+        _siegeHistoryPage = SiegeHistoryTotalPages;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevFilteredBattlesPage()
+    {
+        _filteredBattlesPage = Math.Max(1, FilteredBattlesPage - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task FirstFilteredBattlesPage()
+    {
+        _filteredBattlesPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task NextFilteredBattlesPage()
+    {
+        _filteredBattlesPage = Math.Min(FilteredBattlesTotalPages, FilteredBattlesPage + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastFilteredBattlesPage()
+    {
+        _filteredBattlesPage = FilteredBattlesTotalPages;
+        return Task.CompletedTask;
+    }
+
+    private Task FirstIncomingAttacksPage()
+    {
+        _incomingAttacksPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevIncomingAttacksPage()
+    {
+        _incomingAttacksPage = Math.Max(1, IncomingAttacksPage - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task NextIncomingAttacksPage()
+    {
+        _incomingAttacksPage = Math.Min(IncomingAttacksTotalPages, IncomingAttacksPage + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastIncomingAttacksPage()
+    {
+        _incomingAttacksPage = IncomingAttacksTotalPages;
+        return Task.CompletedTask;
+    }
+
+    private Task FirstVisibleDeploymentsPage()
+    {
+        _visibleDeploymentsPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevVisibleDeploymentsPage()
+    {
+        _visibleDeploymentsPage = Math.Max(1, VisibleDeploymentsPage - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task NextVisibleDeploymentsPage()
+    {
+        _visibleDeploymentsPage = Math.Min(VisibleDeploymentsTotalPages, VisibleDeploymentsPage + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastVisibleDeploymentsPage()
+    {
+        _visibleDeploymentsPage = VisibleDeploymentsTotalPages;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleRecruitSearchInput(ChangeEventArgs args)
+    {
+        _recruitSearch = args.Value?.ToString() ?? string.Empty;
+        _recruitmentPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleRecruitFilterChange(ChangeEventArgs args)
+    {
+        _recruitFilter = Enum.TryParse<RecruitUnitFilter>(args.Value?.ToString(), out var filter)
+            ? filter
+            : RecruitUnitFilter.All;
+        _recruitmentPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task HandleRecruitSortChange(ChangeEventArgs args)
+    {
+        _recruitSort = Enum.TryParse<RecruitUnitSort>(args.Value?.ToString(), out var sort)
+            ? sort
+            : RecruitUnitSort.CostAsc;
+        _recruitmentPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task FirstRecruitmentPage()
+    {
+        _recruitmentPage = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevRecruitmentPage()
+    {
+        _recruitmentPage = Math.Max(1, RecruitmentPage - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task NextRecruitmentPage()
+    {
+        _recruitmentPage = Math.Min(RecruitmentTotalPages, RecruitmentPage + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastRecruitmentPage()
+    {
+        _recruitmentPage = RecruitmentTotalPages;
+        return Task.CompletedTask;
+    }
+
+    private IEnumerable<MilitaryUnit> ApplyRecruitSearch(IEnumerable<MilitaryUnit> source)
+    {
+        var term = _recruitSearch.Trim();
+        if (string.IsNullOrWhiteSpace(term))
+        {
+            return source;
+        }
+
+        return source.Where(unit => unit.Code.ToString().Contains(term, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private IEnumerable<MilitaryUnit> ApplyRecruitFilter(IEnumerable<MilitaryUnit> source)
+    {
+        return _recruitFilter switch
+        {
+            RecruitUnitFilter.Affordable => source.Where(CanAffordRecruitment),
+            RecruitUnitFilter.NotAffordable => source.Where(unit => !CanAffordRecruitment(unit)),
+            _ => source
+        };
+    }
+
+    private IEnumerable<MilitaryUnit> ApplyRecruitSort(IEnumerable<MilitaryUnit> source)
+    {
+        return _recruitSort switch
+        {
+            RecruitUnitSort.CostDesc => source
+                .OrderByDescending(GetRecruitmentCost)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.TimeAsc => source
+                .OrderBy(unit => unit.Speed)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.TimeDesc => source
+                .OrderByDescending(unit => unit.Speed)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.AttackDesc => source
+                .OrderByDescending(unit => unit.OffensivePoints)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.DefenseDesc => source
+                .OrderByDescending(unit => unit.DefensivePoints)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.SpeedDesc => source
+                .OrderByDescending(unit => unit.Speed)
+                .ThenBy(unit => unit.Code),
+            RecruitUnitSort.CodeAsc => source
+                .OrderBy(unit => unit.Code),
+            RecruitUnitSort.CodeDesc => source
+                .OrderByDescending(unit => unit.Code),
+            _ => source
+                .OrderBy(GetRecruitmentCost)
+                .ThenBy(unit => unit.Code)
+        };
+    }
+
+    private string GetUnitDescription(string? code)
+    {
+        var key = $"tabs.military.unit.description.{code?.Trim().ToLowerInvariant()}";
+        var localized = T[key];
+        var description = string.Equals(localized, key, StringComparison.Ordinal)
+            ? T["tabs.military.noUnitDescription"]
+            : localized;
+
+        var unit = MilitaryUnitEngine.FindByCode(code);
+        if (unit?.DefensiveAgainst == null)
+        {
+            return description;
+        }
+
+        return $"{description} Effective only against {GetUnitLabel(unit.DefensiveAgainst.Value.ToString())}.";
+    }
+
+    private int GetRecruitmentQuantity(MilitaryUnit unit)
+        => _militaryRecruitQuantities.TryGetValue(unit.Code, out var quantity) && quantity > 0 ? quantity : 1;
+
+    private void OnRecruitmentQuantityChanged(MilitaryUnitsEnum unitCode, ChangeEventArgs args)
+    {
+        var rawValue = args.Value?.ToString();
+        if (!int.TryParse(rawValue, out var quantity) || quantity < 1)
+        {
+            quantity = 1;
+        }
+
+        _militaryRecruitQuantities[unitCode] = quantity;
+    }
+
+    private Task HandleRecruitmentQuantityChanged((MilitaryUnitsEnum UnitCode, ChangeEventArgs Args) change)
+    {
+        OnRecruitmentQuantityChanged(change.UnitCode, change.Args);
+        return Task.CompletedTask;
+    }
+
+    private static string FormatMultiplier(decimal multiplier) => $"{multiplier:0.00}x";
+
+    private IEnumerable<PlayerMilitaryProduction> GetUnitQueueOrders(MilitaryUnit unit)
+        => ActiveRecruitmentOrders
+            .Where(order => string.Equals(order.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+            .OrderBy(order => order.CreatedAt);
+
+    private static int GetRemainingQueuedQuantity(PlayerMilitaryProduction order)
+        => Math.Max(0, order.Quantity - order.ProducedQuantity);
+
+    private int GetQueuedUnitQuantity(MilitaryUnit unit)
+        => GetUnitQueueOrders(unit).Sum(GetRemainingQueuedQuantity);
+
+    private int GetCurrentUnitQuantity(MilitaryUnit unit)
+        => Player?.PlayerMilitaryUnits?
+            .Where(entry => string.Equals(entry.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+            .Sum(entry => Math.Max(0, entry.Quantity)) ?? 0;
+
+    private int GetCurrentUnitLevel(MilitaryUnit unit)
+        => Math.Max(
+            Player?.PlayerMilitaryUnits?
+                .Where(entry => string.Equals(entry.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Select(entry => Math.Max(1, entry.Level))
+                .DefaultIfEmpty(1)
+                .Max() ?? 1,
+            ActiveRecruitmentOrders
+                .Where(order => string.Equals(order.MilitaryUnitsCode, unit.Code.ToString(), StringComparison.OrdinalIgnoreCase))
+                .Select(order => Math.Max(1, order.Level))
+                .DefaultIfEmpty(1)
+                .Max());
+
+    private decimal GetRecruitmentCost(MilitaryUnit unit)
+        => Math.Max(0.01m, unit.GetCost(GetCurrentUnitLevel(unit)));
+
+    private bool CanAffordRecruitment(MilitaryUnit unit)
+        => (Player?.Money ?? 0m) >= GetRecruitmentCost(unit) * Math.Max(1, GetRecruitmentQuantity(unit));
+
+    private bool CanUpgradeUnit(MilitaryUnit unit)
+        => !_isRecruiting
+           && GetCurrentUnitQuantity(unit) + GetQueuedUnitQuantity(unit) > 0
+           && (Player?.Chips ?? 0m) >= unit.GetUpgradeCost(GetCurrentUnitLevel(unit) + 1);
+
+    private string GetRecruitmentEta(PlayerMilitaryProduction order)
+    {
+        var remaining = Math.Max(0, order.Quantity - order.ProducedQuantity);
+        if (remaining == 0)
+        {
+            return T["tabs.common.completed"];
+        }
+
+        var mu = AvailableMilitaryUnits
+            .Where(q => q.Code.ToString() == order.MilitaryUnitsCode)
+            .Select(q => q.GetProductionTime(Math.Max(1, order.Level)))
+            .FirstOrDefault();
+        var totalSeconds = Math.Max(1, (int)Math.Ceiling((remaining * mu) / Math.Max(1m, _unitProductionSpeedMultiplier)));
+        return FormatDuration(totalSeconds);
+    }
+
+    private string FormatDuration(int totalSeconds)
+    {
+        var timeSpan = TimeSpan.FromSeconds(Math.Max(1, totalSeconds));
+        if (timeSpan.TotalHours >= 1)
+        {
+            return string.Format(T["tabs.military.duration.hoursMinutes"], (int)timeSpan.TotalHours, timeSpan.Minutes);
+        }
+
+        if (timeSpan.TotalMinutes >= 1)
+        {
+            return string.Format(T["tabs.military.duration.minutesSeconds"], timeSpan.Minutes, timeSpan.Seconds);
+        }
+
+        return string.Format(T["tabs.military.duration.seconds"], timeSpan.Seconds);
+    }
+
+    private async Task RecruitUnitAsync(MilitaryUnit unit)
+    {
+        if (Player == null || _isRecruiting)
+        {
+            return;
+        }
+
+        _isRecruiting = true;
+        _recruitError = null;
+
+        try
+        {
+            var quantity = GetRecruitmentQuantity(unit);
+            await PlayersService.CreateMilitaryProductionAsync(Player.PlayersId, unit, quantity);
+
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _recruitSuccess = T["tabs.military.success.recruitmentQueued"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to recruit unit {UnitCode} for player {PlayerId}.", unit.Code, Player.PlayersId);
+            _recruitError = T["tabs.military.error.recruitmentFailed"];
+        }
+        finally
+        {
+            _isRecruiting = false;
+        }
+    }
+
+    private async Task CancelRecruitmentAsync(PlayerMilitaryProduction order)
+    {
+        if (Player == null || _isRecruiting)
+        {
+            return;
+        }
+
+        _isRecruiting = true;
+        _recruitError = null;
+
+        try
+        {
+            await PlayersService.CancelMilitaryOrderAsync(Player.PlayersId, order.PlayerMilitaryOrdersId);
+
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _recruitSuccess = T["tabs.military.success.recruitmentCancelled"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to cancel recruitment order {OrderId} for player {PlayerId}.", order.PlayerMilitaryOrdersId, Player.PlayersId);
+            _recruitError = T["tabs.military.error.cancelRecruitmentFailed"];
+        }
+        finally
+        {
+            _isRecruiting = false;
+        }
+    }
+
+    private async Task DispatchMissionAsync()
+    {
+        if (Player == null || !_selectedDestinationId.HasValue || _selectedUnitLevel <= 0 || _unitQuantity <= 0 || _isDispatching)
+        {
+            return;
+        }
+
+        _isDispatching = true;
+        _dispatchError = null;
+        _dispatchSuccess = null;
+
+        try
+        {
+            if (SelectedUnit == null || string.IsNullOrWhiteSpace(SelectedUnit.MilitaryUnitsCode))
+            {
+                throw new InvalidOperationException("No military unit selected.");
+            }
+
+            await PlayerMilitaryTransportService.DispatchMissionAsync(
+                Player.PlayersId,
+                _selectedDestinationId.Value,
+                _selectedMissionType,
+                [new MilitaryDispatchSelection(SelectedUnit.MilitaryUnitsCode, _unitQuantity)]);
+
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _unitQuantity = 1;
+            _dispatchSuccess = _selectedMissionType switch
+            {
+                nameof(PlayerMilitaryTransportMissionType.Siege) => T["tabs.military.success.siegeMissionDispatched"],
+                nameof(PlayerMilitaryTransportMissionType.Attack) => T["tabs.military.success.attackMissionDispatched"],
+                _ => T["tabs.military.missionDispatched"]
+            };
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to dispatch mission {MissionType} for player {PlayerId} to destination {DestinationId}.", _selectedMissionType, Player.PlayersId, _selectedDestinationId);
+            _dispatchError = T["tabs.military.error.dispatchFailed"];
+        }
+        finally
+        {
+            _isDispatching = false;
+        }
+    }
+
+    private async Task ToggleAutoReturnAsync(PlayerMilitaryTransport transport)
+    {
+        if (Player == null || _isUpdatingAutoReturn)
+        {
+            return;
+        }
+
+        _isUpdatingAutoReturn = true;
+        _updatingAutoReturnTransportId = transport.PlayerMilitaryTransportsId;
+        _dispatchError = null;
+        _dispatchSuccess = null;
+
+        try
+        {
+            await PlayerMilitaryTransportService.SetAutoReturnAfterBattleAsync(
+                Player.PlayersId,
+                transport.PlayerMilitaryTransportsId,
+                !transport.AutoReturnAfterBattle);
+
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _dispatchSuccess = T["tabs.military.success.autoReturnUpdated"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to toggle auto return for transport {TransportId} and player {PlayerId}.", transport.PlayerMilitaryTransportsId, Player.PlayersId);
+            _dispatchError = T["tabs.military.error.autoReturnUpdateFailed"];
+        }
+        finally
+        {
+            _isUpdatingAutoReturn = false;
+            _updatingAutoReturnTransportId = null;
+        }
+    }
+
+    private bool CanCancelAttack(PlayerMilitaryTransport transport)
+    {
+        return string.Equals(transport.MissionType, PlayerMilitaryTransportMissionType.Attack.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+               && string.Equals(transport.Status, PlayerTransportStatus.InProgress.ToDbValue(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool CanWithdrawStationedArmy(PlayerMilitaryTransport transport)
+    {
+        return string.Equals(transport.MissionType, PlayerMilitaryTransportMissionType.Attack.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+               && string.Equals(transport.Status, PlayerTransportStatus.InSiege.ToDbValue(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task WithdrawStationedArmyAsync(Guid transportId)
+    {
+        if (Player == null || _isCancelling)
+        {
+            return;
+        }
+
+        _isCancelling = true;
+        _cancellingTransportId = transportId;
+        _dispatchError = null;
+        _dispatchSuccess = null;
+
+        try
+        {
+            await PlayerMilitaryTransportService.WithdrawStationedUnitsAsync(Player.PlayersId, transportId);
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _dispatchSuccess = T["tabs.military.success.stationedArmyWithdrawn"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to withdraw stationed army from transport {TransportId} for player {PlayerId}.", transportId, Player.PlayersId);
+            _dispatchError = T["tabs.military.error.withdrawFailed"];
+        }
+        finally
+        {
+            _isCancelling = false;
+            _cancellingTransportId = null;
+        }
+    }
+
+    private async Task CancelDeploymentAsync(Guid transportId)
+    {
+        if (Player == null || _isCancelling)
+        {
+            return;
+        }
+
+        _isCancelling = true;
+        _cancellingTransportId = transportId;
+        _dispatchError = null;
+        _dispatchSuccess = null;
+
+        try
+        {
+            await PlayerMilitaryTransportService.CancelAttackAsync(Player.PlayersId, transportId);
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _dispatchSuccess = T["tabs.military.success.attackCancelled"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to cancel deployment {TransportId} for player {PlayerId}.", transportId, Player.PlayersId);
+            _dispatchError = T["tabs.military.error.cancelAttackFailed"];
+        }
+        finally
+        {
+            _isCancelling = false;
+            _cancellingTransportId = null;
+        }
+    }
+
+    private int GetDeploymentProgressPercent(PlayerMilitaryTransport transport)
+    {
+        var totalSeconds = (transport.EndTime - transport.StartTime).TotalSeconds;
+        if (totalSeconds <= 0)
+        {
+            return 100;
+        }
+
+        var elapsedSeconds = (DateTime.UtcNow - transport.StartTime).TotalSeconds;
+        var progress = (int)Math.Round(elapsedSeconds / totalSeconds * 100d);
+        return Math.Clamp(progress, 0, 100);
+    }
+
+    private int GetTransportPower(PlayerMilitaryTransport transport)
+    {
+        var stacks = transport.PlayerMilitaryTransportUnits
+            .Select(unit => MilitaryCombatPowerEngine.CreateStack(unit.MilitaryUnitsCode, unit.Level, unit.Quantity))
+            .Where(stack => stack.HasValue)
+            .Select(stack => stack!.Value);
+
+        var includeSiegePower = string.Equals(
+            transport.MissionType,
+            PlayerMilitaryTransportMissionType.Siege.ToDbValue(),
+            StringComparison.OrdinalIgnoreCase);
+
+        return (int)Math.Round(
+            MilitaryCombatPowerEngine.CalculateAttackerPower(stacks, includeSiegePower),
+            MidpointRounding.AwayFromZero);
+    }
+
+    private int GetDefenderPower(PlayerMilitaryTransport incomingAttack)
+    {
+        var defenderStacks = PlayerArmyEntries
+            .Select(unit => MilitaryCombatPowerEngine.CreateStack(unit.MilitaryUnitsCode, unit.Level, unit.Quantity))
+            .Where(stack => stack.HasValue)
+            .Select(stack => stack!.Value);
+
+        var attackerStacks = incomingAttack.PlayerMilitaryTransportUnits
+            .Select(unit => MilitaryCombatPowerEngine.CreateStack(unit.MilitaryUnitsCode, unit.Level, unit.Quantity))
+            .Where(stack => stack.HasValue)
+            .Select(stack => stack!.Value);
+
+        return (int)Math.Round(
+            MilitaryCombatPowerEngine.CalculateDefenderPower(defenderStacks, attackerStacks),
+            MidpointRounding.AwayFromZero);
+    }
+
+    private int GetAttackerWinChancePercent(PlayerMilitaryTransport incomingAttack)
+    {
+        var projection = BuildIncomingBattleProjection(incomingAttack);
+        if (projection == null)
+        {
+            return 0;
+        }
+
+        if (projection.AttackerLocalWins != projection.DefenderLocalWins)
+        {
+            return projection.AttackerWon ? 100 : 0;
+        }
+
+        if (projection.AttackerRemainingHp <= 0m && projection.DefenderRemainingHp <= 0m)
+        {
+            return 0;
+        }
+
+        if (projection.AttackerRemainingHp <= 0m)
+        {
+            return 0;
+        }
+
+        if (projection.DefenderRemainingHp <= 0m)
+        {
+            return 100;
+        }
+
+        var chance = (int)Math.Round((double)(projection.AttackerRemainingHp / (projection.AttackerRemainingHp + projection.DefenderRemainingHp) * 100m));
+        return Math.Clamp(chance, 1, 99);
+    }
+
+    private BattleSimulationResult? BuildIncomingBattleProjection(PlayerMilitaryTransport incomingAttack)
+    {
+        var attackerUnits = incomingAttack.PlayerMilitaryTransportUnits
+            .Where(unit => unit.Quantity > 0 && !string.IsNullOrWhiteSpace(unit.MilitaryUnitsCode))
+            .Select(unit => new BattleSimulationUnitInput(unit.MilitaryUnitsCode, unit.Level, unit.Quantity))
+            .ToList();
+        if (attackerUnits.Count == 0)
+        {
+            return null;
+        }
+
+        var defenderUnits = PlayerArmyEntries
+            .Where(unit => unit.Quantity > 0 && !string.IsNullOrWhiteSpace(unit.MilitaryUnitsCode))
+            .Select(unit => new BattleSimulationUnitInput(unit.MilitaryUnitsCode, unit.Level, unit.Quantity))
+            .ToList();
+
+        var includeSiegePower = string.Equals(
+            incomingAttack.MissionType,
+            PlayerMilitaryTransportMissionType.Siege.ToDbValue(),
+            StringComparison.OrdinalIgnoreCase);
+
+        return BattleSimulationEngine.SimulateBattle(attackerUnits, defenderUnits, includeSiegePower);
+    }
+
+    private string GetTimeRemainingLabel(PlayerMilitaryTransport transport)
+    {
+        var remaining = transport.EndTime - DateTime.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return T["tabs.military.lessThanMinute"];
+        }
+
+        var totalMinutes = (int)Math.Ceiling(remaining.TotalMinutes);
+        var hours = totalMinutes / 60;
+        var minutes = totalMinutes % 60;
+        var parts = new List<string>();
+
+        if (hours > 0)
+        {
+            parts.Add($"{hours} {PolishPlural(hours, T["tabs.military.hour.singular"], T["tabs.military.hour.paucal"], T["tabs.military.hour.plural"])}");
+        }
+
+        if (minutes > 0 || hours == 0)
+        {
+            parts.Add($"{minutes} {PolishPlural(minutes, T["tabs.military.minute.singular"], T["tabs.military.minute.paucal"], T["tabs.military.minute.plural"])}");
+        }
+
+        return string.Join($" {T["tabs.common.and"]} ", parts);
+    }
+
+    private static string PolishPlural(int value, string singular, string paucal, string plural)
+    {
+        var mod10 = value % 10;
+        var mod100 = value % 100;
+
+        if (value == 1)
+        {
+            return singular;
+        }
+
+        if (mod10 is >= 2 and <= 4 && (mod100 < 12 || mod100 > 14))
+        {
+            return paucal;
+        }
+
+        return plural;
+    }
+
+    private async Task UpdatePlayerStateAsync(Player refreshed)
+    {
+        Player = refreshed;
+        EnsureSelectedUnitLevel();
+
+        if (AppState.MyPlayer?.PlayersId == refreshed.PlayersId)
+        {
+            AppState.SetMyPlayer(refreshed);
+        }
+
+        if (OnPlayerUpdated.HasDelegate)
+        {
+            await OnPlayerUpdated.InvokeAsync(refreshed);
+        }
+    }
+
+    private async Task UpgradeUnitAsync(MilitaryUnit unit)
+    {
+        if (Player == null || _isRecruiting)
+        {
+            return;
+        }
+
+        _isRecruiting = true;
+        _recruitError = null;
+        _recruitSuccess = null;
+
+        try
+        {
+            await PlayersService.UpgradeMilitaryUnitAsync(Player.PlayersId, unit.Code.ToString());
+
+            var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+            if (refreshed != null)
+            {
+                await UpdatePlayerStateAsync(refreshed);
+            }
+
+            _recruitSuccess = T["tabs.military.success.unitUpgraded"];
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "MilitaryTab failed to upgrade unit {UnitCode} for player {PlayerId}.", unit.Code, Player.PlayersId);
+            _recruitError = T["tabs.military.error.unitUpgradeFailed"];
+        }
+        finally
+        {
+            _isRecruiting = false;
+        }
+    }
+
+    private async Task RefreshMilitaryPlayerAsync()
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        var refreshed = await PlayersService.GetPlayerForTab(Player.PlayersId, PlayerOverviewTabEnum.Military);
+        if (refreshed != null)
+        {
+            await UpdatePlayerStateAsync(refreshed);
+        }
+    }
+
+    private async Task ArchiveBattleReportAsync(Guid reportId)
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        await PlayersService.ArchiveBattleReportAsync(Player.PlayersId, reportId);
+        await RefreshMilitaryPlayerAsync();
+    }
+
+    private async Task ArchiveSiegeReportAsync(Guid siegeId)
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        await PlayersService.ArchiveSiegeReportAsync(Player.PlayersId, siegeId);
+        await RefreshMilitaryPlayerAsync();
+    }
+
+    private async Task ArchiveAidReportAsync(Guid transportId)
+    {
+        if (Player == null)
+        {
+            return;
+        }
+
+        await PlayersService.ArchiveAidReportAsync(Player.PlayersId, transportId);
+        await RefreshMilitaryPlayerAsync();
+    }
+
+    private bool IsCancellingTransport(Guid? transportId)
+        => _isCancelling && _cancellingTransportId == transportId;
+
+    private bool IsUpdatingAutoReturnTransport(Guid? transportId)
+        => _isUpdatingAutoReturn && _updatingAutoReturnTransportId == transportId;
+
+    private string GetUnitLabel(string? unitCode)
+    {
+        if (string.IsNullOrWhiteSpace(unitCode))
+        {
+            return T["tabs.military.unknownUnit"];
+        }
+
+        var key = $"tabs.military.unit.code.{unitCode.Trim().ToLowerInvariant()}";
+        var localized = T[key];
+        return string.Equals(localized, key, StringComparison.Ordinal) ? unitCode : localized;
+    }
+
+    private string GetProductLabel(string? productCode)
+    {
+        if (string.IsNullOrWhiteSpace(productCode))
+        {
+            return T["tabs.common.unknown"];
+        }
+
+        var key = $"products.code.{productCode.Trim().ToLowerInvariant()}";
+        var localized = T[key];
+        return string.Equals(localized, key, StringComparison.Ordinal) ? productCode : localized;
+    }
+
+    private string GetMissionLabel(string? missionType) => (missionType ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        nameof(PlayerMilitaryTransportMissionType.Attack) => T["tabs.common.attack"],
+        nameof(PlayerMilitaryTransportMissionType.Siege) => T["tabs.military.missionType.siege"],
+        nameof(PlayerMilitaryTransportMissionType.Aid) => T["tabs.military.aid"],
+        _ => T["tabs.common.unknown"]
+    };
+
+    private string GetTransportStatusLabel(string? status) => (status ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        nameof(PlayerTransportStatus.InProgress) => T["tabs.military.transportStatus.inProgress"],
+        nameof(PlayerTransportStatus.InSiege) => T["tabs.military.transportStatus.inSiege"],
+        "completed" => T["tabs.common.completed"],
+        "cancelled" => T["tabs.military.transportStatus.cancelled"],
+        _ => T["tabs.common.unknown"]
+    };
+
+    private string GetSiegeStatusLabel(string? status) => (status ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "active" => T["tabs.common.active"],
+        "completed" => T["tabs.common.completed"],
+        "cancelled" => T["tabs.military.transportStatus.cancelled"],
+        _ => T["tabs.common.unknown"]
+    };
+
+}

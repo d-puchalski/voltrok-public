@@ -1,0 +1,244 @@
+.foreign-player-tooltip {
+    position: fixed;
+    left: 1.25rem;
+    bottom: 1.25rem;
+    z-index: 1200;
+    width: min(420px, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.foreign-player-tooltip-card {
+    position: relative;
+    pointer-events: auto;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 94%, transparent);
+    border: 1px solid var(--medieval-border);
+    border-radius: 16px;
+    box-shadow: 0 18px 40px var(--medieval-shadow);
+    color: var(--medieval-text);
+    padding: 1rem;
+    backdrop-filter: blur(12px);
+}
+
+.foreign-player-tooltip-close {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--medieval-muted);
+}
+
+.foreign-player-tooltip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    padding-right: 2.25rem;
+}
+
+.foreign-player-tooltip-avatar-wrap {
+    width: 56px;
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--medieval-card-hover);
+    border: 1px solid var(--medieval-border);
+    flex: 0 0 auto;
+}
+
+.foreign-player-tooltip-avatar {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.foreign-player-tooltip-name {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+}
+
+.foreign-player-tooltip-subtitle {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    color: var(--medieval-muted);
+    font-size: 0.88rem;
+}
+
+.foreign-player-tooltip-country {
+    color: inherit;
+}
+
+.foreign-player-tooltip-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.18rem 0.45rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-gold) 16%, transparent);
+    color: var(--medieval-gold);
+    font-size: 0.7rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+}
+
+.foreign-player-tooltip-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem 1rem;
+    margin-top: 1rem;
+}
+
+.foreign-player-tooltip-stat {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    font-size: 0.86rem;
+}
+
+.foreign-player-tooltip-stat span {
+    color: var(--medieval-muted);
+}
+
+.foreign-player-tooltip-stat strong {
+    color: var(--medieval-text);
+    text-align: right;
+}
+
+.foreign-player-tooltip-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.6rem;
+    margin-top: 1rem;
+}
+
+.foreign-player-tooltip-actions .btn {
+    min-height: 40px;
+    font-weight: 700;
+}
+
+.foreign-player-tooltip-actions-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 1rem;
+    min-height: 40px;
+    color: var(--medieval-muted);
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+
+.foreign-player-tooltip-section {
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent);
+}
+
+.foreign-player-tooltip-section-title {
+    margin-bottom: 0.5rem;
+    color: var(--medieval-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.foreign-player-tooltip-force-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.foreign-player-tooltip-force-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.84rem;
+}
+
+.foreign-player-tooltip-force-row span {
+    color: var(--medieval-text);
+}
+
+.foreign-player-tooltip-force-row strong {
+    color: var(--medieval-gold);
+}
+
+.foreign-player-tooltip-operation-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.84rem;
+}
+
+.foreign-player-tooltip-operation-row span {
+    color: var(--medieval-text);
+}
+
+.foreign-player-tooltip-operation-row strong {
+    color: var(--medieval-gold);
+}
+
+.foreign-player-tooltip-operation-meta {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+    color: var(--medieval-muted);
+}
+
+.foreign-player-tooltip-actions-compact {
+    grid-template-columns: 1fr;
+    margin-top: 0.75rem;
+}
+
+.foreign-player-tooltip-operation-feedback {
+    margin-top: 0.6rem;
+    font-size: 0.78rem;
+    color: var(--medieval-gold);
+}
+
+.foreign-player-tooltip-war-hint {
+    margin-top: 0.75rem;
+    padding: 0.7rem 0.85rem;
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--medieval-danger) 34%, var(--medieval-border));
+    background: color-mix(in srgb, var(--medieval-danger) 10%, transparent);
+    color: color-mix(in srgb, var(--medieval-danger) 70%, white);
+    font-size: 0.78rem;
+    line-height: 1.4;
+    font-weight: 700;
+}
+
+.foreign-player-tooltip-loading {
+    color: var(--medieval-muted);
+    text-align: center;
+    padding: 1rem 0;
+}
+
+@media (max-width: 768px) {
+    .foreign-player-tooltip {
+        left: 0.75rem;
+        right: 0.75rem;
+        bottom: 0.75rem;
+        width: auto;
+        z-index: 11020;
+    }
+
+    .foreign-player-tooltip-actions {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .foreign-player-tooltip-stats {
+        grid-template-columns: 1fr;
+    }
+}

@@ -1,0 +1,74 @@
+.app-wrapper.theme-light {
+    --medieval-bg: #eef3f9;
+    --medieval-panel: rgba(255, 255, 255, 0.9);
+    --medieval-panel-strong: rgba(255, 255, 255, 0.96);
+    --medieval-border: rgba(59, 130, 246, 0.28);
+    --medieval-gold: #2563eb;
+    --medieval-gold-dark: #1d4ed8;
+    --medieval-text: #0f172a;
+    --medieval-muted: #475569;
+    --medieval-shadow: rgba(37, 99, 235, 0.14);
+    --topbar-bg: rgb(245 249 255 / 92%);
+    --topbar-border: rgba(37, 99, 235, 0.25);
+    --medieval-surface: rgba(255, 255, 255, 0.72);
+    --medieval-surface-strong: rgba(255, 255, 255, 0.92);
+    --medieval-surface-alt: rgba(241, 245, 249, 0.9);
+    --medieval-overlay: rgba(226, 232, 240, 0.7);
+    --medieval-overlay-strong: rgba(226, 232, 240, 0.9);
+    --medieval-card: rgba(255, 255, 255, 0.82);
+    --medieval-card-hover: rgba(241, 245, 249, 0.88);
+    --medieval-progress-bg: color-mix(in srgb, var(--medieval-text) 12%, transparent);
+    --medieval-ui-surface: color-mix(in srgb, var(--medieval-text) 6%, transparent);
+    --medieval-ui-surface-hover: color-mix(in srgb, var(--medieval-text) 12%, transparent);
+    --medieval-ui-surface-strong: color-mix(in srgb, var(--medieval-text) 18%, transparent);
+    --medieval-ui-border: color-mix(in srgb, var(--medieval-text) 12%, transparent);
+    --medieval-ui-border-strong: color-mix(in srgb, var(--medieval-text) 18%, transparent);
+    --medieval-ui-text: color-mix(in srgb, var(--medieval-text) 78%, transparent);
+    --medieval-ui-text-muted: color-mix(in srgb, var(--medieval-text) 58%, transparent);
+    --medieval-ui-text-strong: color-mix(in srgb, var(--medieval-text) 92%, transparent);
+    --medieval-action-bg: color-mix(in srgb, var(--medieval-gold) 22%, transparent);
+    --medieval-action-border: color-mix(in srgb, var(--medieval-gold) 45%, transparent);
+    --medieval-map-surface: var(--medieval-panel-strong);
+    --medieval-map-surface-alt: var(--medieval-panel);
+    --medieval-map-surface-hover: var(--medieval-card-hover);
+    --medieval-map-active: color-mix(in srgb, var(--medieval-gold) 20%, var(--medieval-panel-strong) 80%);
+    --medieval-map-border: var(--medieval-border);
+    --medieval-map-text: var(--medieval-text);
+    --medieval-map-text-muted: var(--medieval-muted);
+    --medieval-map-divider: color-mix(in srgb, var(--medieval-border) 65%, transparent);
+    --medieval-map-overlay: var(--medieval-overlay-strong);
+    --medieval-status-offline: color-mix(in srgb, var(--medieval-muted) 75%, #fff 25%);
+    --medieval-status-online: color-mix(in srgb, #0ea5e9 65%, var(--medieval-gold) 35%);
+    --medieval-status-border: color-mix(in srgb, var(--medieval-bg) 82%, #cbd5e1 18%);
+    --medieval-profile-header: color-mix(in srgb, var(--medieval-text) 4%, transparent);
+    --medieval-profile-stat: color-mix(in srgb, var(--medieval-text) 6%, transparent);
+    --medieval-chat-input-bg: var(--medieval-ui-surface);
+    --medieval-chat-input-focus: var(--medieval-ui-surface-hover);
+    --medieval-chat-scrollbar-track: var(--medieval-ui-surface);
+    --medieval-chat-scrollbar-thumb: var(--medieval-ui-surface-strong);
+    --medieval-chat-scrollbar-thumb-hover: var(--medieval-ui-surface-hover);
+    --medieval-error-bg: color-mix(in srgb, #ef4444 50%, var(--medieval-panel) 50%);
+    --season-banner-text: #eef6ff;
+    --season-banner-bg-start: rgba(227, 238, 251, 0.96);
+    --season-banner-bg-mid: rgba(194, 216, 245, 0.98);
+    --season-banner-bg-end: rgba(79, 123, 237, 0.98);
+    --season-banner-border: rgba(59, 130, 246, 0.34);
+    --season-banner-shadow: rgba(23, 53, 121, 0.18);
+    --season-banner-item-glow: rgba(255, 255, 255, 0.24);
+    --season-banner-item-bg-start: rgba(255, 255, 255, 0.9);
+    --season-banner-item-bg-mid: rgba(236, 244, 255, 0.95);
+    --season-banner-item-bg-end: rgba(197, 222, 255, 0.98);
+    --season-banner-item-shadow: rgba(37, 99, 235, 0.14);
+    --season-banner-item-highlight: rgba(255, 255, 255, 0.7);
+    --season-banner-summary-text: rgba(15, 23, 42, 0.9);
+    --season-banner-item-text: #0f172a;
+    --season-banner-loading-text: rgba(255, 255, 255, 0.96);
+}
+
+.app-wrapper.theme-light .text-white {
+    color: #0f172a !important;
+}
+
+.app-wrapper.theme-light .text-muted {
+    color: #64748b !important;
+}

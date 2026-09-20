@@ -1,0 +1,215 @@
+.sidebar-buttons {
+    position: absolute;
+    top: 72px;
+    left: 12px;
+    padding: 0.75rem;
+    z-index: 1000;
+}
+
+.sidebar-buttons-inline {
+    position: static;
+    gap: 0.5rem;
+}
+
+.glass-btn {
+    background: color-mix(in srgb, var(--medieval-ui-surface-strong) 82%, transparent);
+    border: 1px solid var(--medieval-ui-border-strong);
+    color: var(--medieval-text);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
+    transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.glass-btn:hover {
+    background: var(--medieval-ui-surface-hover);
+    transform: translateY(-2px);
+}
+
+.glass-btn:focus-visible {
+    outline: none;
+    border-color: var(--medieval-action-border);
+    box-shadow: 0 0 0 0.2rem var(--medieval-action-bg);
+}
+
+.btn-square {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-buttons-inline .btn-square {
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border-radius: 12px;
+}
+
+.sidebar-buttons-inline .btn-square iconify-icon {
+    width: 20px;
+    height: 20px;
+}
+
+.sidebar-button-icon {
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+    flex: 0 0 auto;
+}
+
+.sidebar-button-btn {
+    gap: 0.55rem;
+    min-height: 42px;
+    padding: 0.6rem 0.9rem;
+    border-radius: 999px;
+    white-space: nowrap;
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar-button-shell {
+    position: relative;
+    display: inline-flex;
+}
+
+.sidebar-buttons-inline .sidebar-button-shell-info {
+    margin-left: auto;
+}
+
+.sidebar-button-tooltip {
+    position: absolute;
+    left: calc(100% + 10px);
+    top: 50%;
+    transform: translateY(-50%) translateX(-6px);
+    opacity: 0;
+    pointer-events: none;
+    padding: 0.55rem 0.75rem;
+    border-radius: 14px;
+    border: 1px solid var(--medieval-map-border, var(--medieval-border));
+    background:
+        linear-gradient(180deg,
+            color-mix(in srgb, var(--medieval-panel-strong) 94%, white 6%),
+            color-mix(in srgb, var(--medieval-card) 92%, black 8%));
+    color: var(--medieval-map-text, var(--medieval-text));
+    box-shadow: var(--medieval-shadow);
+    font-size: 0.76rem;
+    font-weight: 700;
+    line-height: 1.2;
+    white-space: nowrap;
+    z-index: 1002;
+    transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.sidebar-button-tooltip::before {
+    content: "";
+    position: absolute;
+    left: -6px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    transform: translateY(-50%) rotate(45deg);
+    background: color-mix(in srgb, var(--medieval-panel-strong) 94%, white 6%);
+    border-left: 1px solid var(--medieval-map-border, var(--medieval-border));
+    border-bottom: 1px solid var(--medieval-map-border, var(--medieval-border));
+}
+
+.sidebar-button-text {
+    font-size: 0.82rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.sidebar-buttons-inline .sidebar-button-btn {
+    min-height: 38px;
+    padding: 0.45rem 0.75rem;
+}
+
+.sidebar-buttons-inline .sidebar-button-icon {
+    width: 18px;
+    height: 18px;
+}
+
+.sidebar-buttons-inline .sidebar-button-text {
+    font-size: 0.76rem;
+}
+
+.sidebar-button-shell:hover .sidebar-button-tooltip,
+.sidebar-button-shell:focus-within .sidebar-button-tooltip {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+}
+
+.active-btn {
+    background: var(--medieval-action-bg);
+    border-color: var(--medieval-action-border);
+}
+
+.chat-btn {
+    position: relative;
+}
+
+.chat-unread-badge {
+    position: absolute;
+    top: 2px;
+    right: 6px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: #d9534f;
+    color: #fff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.sidebar-buttons-inline .chat-unread-badge {
+    top: -4px;
+    right: -4px;
+    min-width: 16px;
+    height: 16px;
+    font-size: 9px;
+}
+
+@media (max-width: 768px) {
+    .sidebar-buttons {
+        position: fixed;
+        top: 50%;
+        left: 12px;
+        transform: translateY(-50%);
+        padding: 0.5rem;
+    }
+
+    .sidebar-buttons-inline {
+        position: static;
+        transform: none;
+        left: auto;
+        top: auto;
+    }
+
+    .sidebar-button-btn {
+        width: 42px;
+        min-width: 42px;
+        min-height: 42px;
+        padding: 0.55rem;
+        border-radius: 999px;
+        gap: 0;
+    }
+
+    .sidebar-button-text {
+        display: none;
+    }
+
+    .sidebar-button-tooltip {
+        left: calc(100% + 8px);
+        font-size: 0.72rem;
+    }
+}

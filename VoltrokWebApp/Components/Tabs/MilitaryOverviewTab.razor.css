@@ -1,0 +1,377 @@
+.military-overview-section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.military-overview-section-subtitle {
+    color: var(--medieval-muted);
+    font-size: 0.82rem;
+}
+
+.military-overview-grid,
+.military-queue-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1rem;
+    overflow: visible;
+}
+
+.military-overview-card {
+    min-height: 380px !important;
+    justify-content: flex-start;
+    background: transparent !important;
+    border: 0 !important;
+    clip-path: none !important;
+    overflow: visible !important;
+    isolation: isolate;
+    z-index: 1;
+}
+
+.military-overview-card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--medieval-card);
+    border: 1px solid var(--medieval-border);
+    clip-path: polygon(0 0, calc(100% - 20px) 0, 100% 20px, 100% 100%, 20px 100%, 0 calc(100% - 20px));
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, background 0.2s;
+    z-index: 0;
+    pointer-events: none;
+}
+
+.military-overview-card > * {
+    position: relative;
+    z-index: 2;
+}
+
+.military-overview-card:hover::after {
+    border-color: var(--medieval-gold);
+    background: var(--medieval-action-bg);
+    box-shadow: 0 0 20px var(--medieval-gold);
+}
+
+.military-overview-card:hover,
+.military-overview-card:focus-within {
+    z-index: 5000;
+}
+
+.military-overview-card-top {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.9rem;
+    min-height: clamp(72px, 8vw, 96px);
+}
+
+.military-overview-icon-wrap {
+    border-radius: 24px;
+}
+
+.military-overview-icon {
+    max-height: 72px;
+}
+
+.military-overview-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    align-self: center;
+    justify-self: end;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 2rem;
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 4%, transparent);
+    text-align: right;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    margin: 0;
+    height: fit-content;
+}
+
+.military-overview-title,
+.military-overview-value {
+    text-align: right;
+}
+
+
+.military-overview-value {
+    font-size: 2.2rem;
+}
+
+.military-overview-queued-label {
+    margin-top: 0.35rem;
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--medieval-muted);
+    text-align: right;
+}
+
+.military-overview-queued-progress {
+    margin-top: 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.55rem 0.7rem;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent);
+    background: color-mix(in srgb, var(--medieval-panel-strong) 88%, transparent);
+    color: var(--medieval-text);
+    font-size: 0.82rem;
+}
+
+.military-overview-queued-progress strong {
+    color: var(--medieval-gold);
+    font-weight: 800;
+    text-align: right;
+}
+
+.military-overview-stats {
+    margin-top: 1rem;
+    padding: 0.2rem 0.1rem 0;
+}
+
+.military-overview-stats .inventory-resource-meta-row,
+.military-overview-costs .inventory-resource-meta-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 0.9rem;
+    row-gap: 0.2rem;
+    padding: 0.52rem 0;
+}
+
+.military-overview-stats .inventory-resource-meta-row strong,
+.military-overview-costs .inventory-resource-meta-row strong {
+    text-align: right;
+    justify-self: end;
+    white-space: nowrap;
+}
+
+.military-overview-actions {
+    display: grid;
+    grid-template-columns: minmax(92px, 110px) minmax(0, 1fr);
+    gap: 0.75rem;
+    margin-top: 1.15rem;
+}
+
+.military-overview-actions-secondary {
+    margin-top: 0.75rem;
+    width: 100%;
+}
+
+.military-overview-actions-secondary > .military-overview-action-btn {
+    width: 100%;
+}
+
+.military-overview-upgrade-action-wrap {
+    position: relative;
+    width: 100%;
+}
+
+.military-overview-upgrade-btn {
+    width: 100%;
+    min-width: 0;
+    padding-right: 3.6rem;
+}
+
+.military-overview-upgrade-tooltip-anchor {
+    position: absolute;
+    top: 50%;
+    right: 0.55rem;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2147483646;
+}
+
+.military-overview-upgrade-info-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, .45);
+    background: #050a18;
+    color: #e2e8f0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 8px 20px rgba(2, 6, 23, .32);
+    cursor: help;
+    padding: 0;
+    position: relative;
+    z-index: 2147483646;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+
+.military-overview-upgrade-info-btn:hover,
+.military-overview-upgrade-info-btn:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(226, 232, 240, .62);
+    box-shadow: 0 12px 26px rgba(2, 6, 23, .4);
+    outline: none;
+}
+
+.military-overview-upgrade-info-btn svg {
+    width: 15px;
+    height: 15px;
+    fill: currentColor;
+}
+
+.military-overview-upgrade-tooltip {
+    position: absolute;
+    left: auto;
+    right: 0;
+    top: auto;
+    bottom: calc(100% + 10px);
+    transform: translateY(6px);
+    width: min(420px, calc(100vw - 32px));
+    min-width: 300px;
+    max-width: 420px;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .16s ease, visibility .16s ease;
+    z-index: 2147483647;
+    background: #050a18;
+    color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, .45);
+    border-radius: 10px;
+    padding: .8rem .95rem;
+    box-shadow: 0 18px 40px rgba(2, 6, 23, .45);
+}
+
+.military-overview-upgrade-tooltip::after {
+    content: "";
+    position: absolute;
+    right: 10px;
+    top: 100%;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: 7px solid #050a18;
+}
+
+.military-overview-upgrade-tooltip-anchor:hover .military-overview-upgrade-tooltip,
+.military-overview-upgrade-tooltip-anchor:focus-within .military-overview-upgrade-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.military-overview-upgrade-tooltip .inventory-resource-meta-tooltip-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.military-overview-upgrade-tooltip .inventory-resource-meta-tooltip-row + .inventory-resource-meta-tooltip-row {
+    margin-top: 0.45rem;
+    padding-top: 0.45rem;
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 70%, transparent);
+}
+
+.military-overview-upgrade-tooltip .inventory-resource-meta-tooltip-row:first-child {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+}
+
+.military-overview-upgrade-tooltip .inventory-resource-meta-tooltip-row span {
+    color: rgba(226, 232, 240, .92);
+    font-size: .88rem;
+    font-weight: 600;
+}
+
+.military-overview-upgrade-tooltip .inventory-resource-meta-tooltip-row strong {
+    color: #e2e8f0;
+    font-size: .88rem;
+    font-weight: 700;
+    text-align: right;
+}
+
+.military-overview-quantity-input {
+    min-width: 0;
+    text-align: center;
+    font-weight: 800;
+}
+
+.military-overview-action-btn {
+    min-height: 42px;
+    font-weight: 700;
+}
+
+.military-overview-costs {
+    margin-top: 0.9rem;
+}
+
+.military-overview-resource-cost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.45rem;
+    font-weight: 800;
+}
+
+.military-overview-resource-cost-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+    flex: 0 0 auto;
+}
+
+.military-overview-total-cost {
+    margin-top: 0.9rem;
+    padding: 0.9rem 1rem;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 55%, var(--medieval-border));
+    background:
+        linear-gradient(135deg, color-mix(in srgb, var(--medieval-gold) 14%, transparent), transparent 55%),
+        color-mix(in srgb, var(--medieval-panel-strong) 92%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, white 4%, transparent);
+}
+
+.military-overview-total-cost-label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--medieval-muted);
+}
+
+.military-overview-total-cost-value {
+    margin-top: 0.35rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.35rem;
+    font-weight: 900;
+    color: var(--medieval-gold);
+}
+
+@media (max-width: 768px) {
+    .military-overview-section-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .military-overview-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .military-overview-queued-progress {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}

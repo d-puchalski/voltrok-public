@@ -1,0 +1,104 @@
+.player-name-badges-wrap {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: .35rem;
+}
+
+.player-badge-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    background: color-mix(in srgb, var(--badge-color, #8b5cf6) 15%, transparent);
+    position: relative;
+    z-index: 2147483646;
+}
+
+.player-badge-icon {
+    font-size: .9rem;
+    line-height: 1;
+}
+
+.player-badge-chip.badge-tier-bronze {
+    --badge-color: #cd7f32;
+    border-color: color-mix(in srgb, var(--badge-color) 55%, transparent);
+}
+
+.player-badge-chip.badge-tier-silver {
+    --badge-color: #c0c0c0;
+    border-color: color-mix(in srgb, var(--badge-color) 60%, transparent);
+}
+
+.player-badge-chip.badge-tier-gold {
+    --badge-color: #ffd700;
+    border-color: color-mix(in srgb, var(--badge-color) 60%, transparent);
+}
+
+.player-badge-anchor {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    z-index: 2147483646;
+}
+
+.player-badge-anchor .player-badge-chip {
+    cursor: help;
+}
+
+.player-badge-tooltip {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 10px);
+    transform: translateX(-50%) translateY(6px);
+    width: min(520px, calc(100vw - 28px));
+    min-width: 300px;
+    max-width: 520px;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .16s ease, visibility .16s ease;
+    z-index: 2147483647;
+    background: rgba(5, 10, 24, .96);
+    color: #e2e8f0;
+    border: 1px solid rgba(148, 163, 184, .45);
+    border-radius: 10px;
+    padding: .8rem .95rem;
+    box-shadow: 0 18px 40px rgba(2, 6, 23, .45);
+}
+
+.player-badge-tooltip::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    transform: translateX(-50%);
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-bottom: 7px solid rgba(5, 10, 24, .96);
+}
+
+.player-badge-tooltip-title {
+    display: block;
+    font-size: .95rem;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
+.player-badge-tooltip-desc {
+    display: block;
+    margin-top: .42rem;
+    font-size: .88rem;
+    line-height: 1.3;
+    color: rgba(226, 232, 240, .92);
+}
+
+.player-badge-anchor:hover .player-badge-tooltip,
+.player-badge-anchor:focus-within .player-badge-tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+}

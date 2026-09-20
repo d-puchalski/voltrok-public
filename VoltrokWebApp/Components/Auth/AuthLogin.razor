@@ -1,0 +1,148 @@
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services.Auth
+@using VoltrokUtils.Enums
+@inherits AppStateComponentBase
+
+@if (AppState.ActiveModal == ModalTypesEnum.Login)
+{
+    <div class="modal-overlay auth-modal-overlay" @onclick:stopPropagation="true">
+        <div class="modal-content glass-panel auth-dialog medieval-auth" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <div class="d-flex align-items-center">
+                   
+                    <div>
+                        <h4 class="m-0 text-white fw-bold">@T["auth.login.portalTitle"]</h4>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button type="button" class="btn-close btn-close-white" @onclick="CloseModal"></button>
+                </div>
+            </div>
+
+            <div class="dialog-body-container container-fluid p-0">
+                <div class="row g-0 flex-fill auth-body-grid">
+                    <div class="col-12 main-content-panel">
+                    <div class="auth-form-container">
+                        <div class="auth-form-v2 fadeIn">
+                            <h2 class="text-white fw-bold mb-1">@T["auth.login.welcomeBack"]</h2>
+                            <p class="text-muted mb-4">@T["auth.login.authenticateHint"]</p>
+
+                            <EditForm Model="@_loginModel" OnValidSubmit="@HandleLogin">
+                                <DataAnnotationsValidator/>
+                                <div class="form-floating mb-3">
+                                    <InputText @bind-Value="_loginModel.Email" class="form-control bg-dark border-white-10 text-white" id="loginEmail" placeholder="@T["auth.common.emailPlaceholder"]" disabled="@_loading"/>
+                                    <label for="loginEmail" class="text-muted">@T["auth.common.emailAddress"]</label>
+                                </div>
+                                <div class="form-floating mb-4">
+                                    <InputText @bind-Value="_loginModel.Password" type="password" class="form-control bg-dark border-white-10 text-white" id="loginPass" placeholder="@T["auth.common.password"]" disabled="@_loading"/>
+                                    <label for="loginPass" class="text-muted">@T["auth.login.securityCredential"]</label>
+                                </div>
+
+                                @if (!string.IsNullOrEmpty(_error))
+                                {
+                                    <div class="alert alert-danger mb-4 border-0 bg-danger bg-opacity-10 text-danger">
+                                        <iconify-icon icon="carbon:warning" class="me-2"></iconify-icon> @_error
+                                    </div>
+                                }
+
+                                <button type="submit" class="btn btn-primary btn-lg w-100 rounded-pill py-3 fw-bold shadow-lg" disabled="@_loading">
+                                    @if (_loading)
+                                    {
+                                        <iconify-icon icon="line-md:loading-twotone-loop" width="24" class="me-2"></iconify-icon>
+                                        <span>@T["auth.login.authenticating"]</span>
+                                    }
+                                    else
+                                    {
+                                        <span>@T["auth.login.initializeSession"]</span>
+                                    }
+                                </button>
+                                <div class="auth-soft-cta mt-4">
+                                    <span class="text-muted small">@T["auth.login.newToGame"]</span>
+                                    <button type="button" class="btn btn-link p-0 ms-2 auth-link-btn" @onclick="OpenRegisterModal">@T["auth.login.initializeNewAccount"]</button>
+                                </div>
+                            </EditForm>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+}
+
+@code {
+    private bool _loading;
+    private string? _error;
+    private readonly User _loginModel = new();
+
+    private void CloseModal()
+    {
+        ClearAuthQueryState();
+        AppState.CloseModal();
+    }
+
+    private void OpenRegisterModal()
+    {
+        ClearAuthQueryState();
+        AppState.OpenModal(ModalTypesEnum.Register);
+    }
+
+    protected override Task OnAppStateChangedAsync()
+    {
+        if (AppState.ActiveModal == ModalTypesEnum.Login)
+        {
+            _error = ResolveAuthErrorMessage();
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleLogin()
+    {
+        _loading = true;
+        _error = null;
+
+        try
+        {
+            var result = await AuthService.LoginAsync(_loginModel);
+            if (result)
+            {
+                Navigation.NavigateTo("/", true);
+                CloseModal();
+            }
+            else
+            {
+                _error = T["auth.login.invalidAttempt"];
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["auth.login.error.logPrefix"]);
+            _error = T["auth.login.unexpectedError"];
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private string? ResolveAuthErrorMessage()
+    {
+        return null;
+    }
+
+    private void ClearAuthQueryState()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        if (string.IsNullOrWhiteSpace(uri.Query))
+        {
+            return;
+        }
+
+        Navigation.NavigateTo("/", replace: true);
+    }
+}
+

@@ -1,0 +1,1295 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Countries
+@using VoltrokUtils.Engines
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+@using VoltrokWebApp.Components.Parts
+
+@inherits AppStateComponentBase
+
+@inject CountriesService CountriesService
+@inject CountryGovernanceService CountryGovernanceService
+
+@if (AppState.ActiveModal == ModalTypesEnum.Country)
+{
+    <div class="info-overlay full-page" @onclick="CloseModal">
+        <div class="info-dialog glass-panel full-page-dialog country-management-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-header">
+                <div class="d-flex align-items-center">
+                    <iconify-icon icon="solar:crown-bold" width="30" class="me-2 text-warning"></iconify-icon>
+                    <div>
+                        <h4 class="m-0 text-white fw-bold">@T["modals.player.tab.country"]</h4>
+                        <small class="text-muted">@T["tabs.country.info"]</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dialog-body-container">
+                <div class="main-content-panel w-100">
+                    <div class="content-section">
+                        @if (_isLoading)
+                        {
+                            <div class="glass-card p-3">
+                                <div class="small text-muted">@T["tabs.country.loading"]</div>
+                            </div>
+                        }
+                        else if (_country is null)
+                        {
+                            <div class="glass-card p-3">
+                                <div class="small text-muted">@T["tabs.country.noData"]</div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="management-tabs mb-4 @(AppState.IsOnboardingTarget("country-tabs") ? "onboarding-highlight" : "")">
+                                <button class="management-tab @GetTabClass(CountrySubTab.Overview) @(AppState.IsOnboardingTarget("country-tab-overview") ? "onboarding-highlight" : "")" @onclick="() => SetCountryTabAsync(CountrySubTab.Overview)">
+                                    <iconify-icon icon="solar:widget-5-bold" class="me-2"></iconify-icon>
+                                    @T["modals.country.tab.overview"]
+                                </button>
+                                <button class="management-tab @GetTabClass(CountrySubTab.Council) @(AppState.IsOnboardingTarget("country-tab-council") ? "onboarding-highlight" : "")" @onclick="() => SetCountryTabAsync(CountrySubTab.Council)">
+                                    <iconify-icon icon="solar:crown-bold" class="me-2"></iconify-icon>
+                                    @T["modals.country.tab.council"]
+                                </button>
+                                <button class="management-tab @GetTabClass(CountrySubTab.Treasury) @(AppState.IsOnboardingTarget("country-tab-treasury") ? "onboarding-highlight" : "")" @onclick="() => SetCountryTabAsync(CountrySubTab.Treasury)">
+                                    <iconify-icon icon="solar:wallet-money-bold" class="me-2"></iconify-icon>
+                                    @T["modals.country.tab.treasury"]
+                                </button>
+                                <button class="management-tab @GetTabClass(CountrySubTab.Buildings) @(AppState.IsOnboardingTarget("country-tab-buildings") ? "onboarding-highlight" : "")" @onclick="() => SetCountryTabAsync(CountrySubTab.Buildings)">
+                                    <iconify-icon icon="solar:buildings-3-bold" class="me-2"></iconify-icon>
+                                    @T["modals.country.tab.buildings"]
+                                </button>
+                                <button class="management-tab @GetTabClass(CountrySubTab.Wars) @(AppState.IsOnboardingTarget("country-tab-diplomacy") ? "onboarding-highlight" : "")" @onclick="() => SetCountryTabAsync(CountrySubTab.Wars)">
+                                    <iconify-icon icon="solar:sword-bold" class="me-2"></iconify-icon>
+                                    @T["modals.country.tab.diplomacy"]
+                                </button>
+
+                                <button type="button" class="management-tab modal-close-tab ms-auto" @onclick="CloseModal">
+                                    <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                                    @T["layout.main.dismiss"]
+                                </button>
+                            </div>
+
+                            @if (!string.IsNullOrWhiteSpace(_actionError))
+                            {
+                                <div class="alert alert-danger mb-4 border-0 bg-danger bg-opacity-10 text-danger" role="alert">
+                                    @_actionError
+                                </div>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(_actionSuccess))
+                            {
+                                <div class="alert alert-success mb-4 border-0 bg-success bg-opacity-10 text-success" role="alert">
+                                    @_actionSuccess
+                                </div>
+                            }
+
+                            @if (_countryTab == CountrySubTab.Overview)
+                            {
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["tabs.country.info"]</h6>
+                                    <div class="country-summary-grid">
+                                        <div class="country-summary-card country-summary-card-hero building-card-large">
+                                            <div class="country-summary-icon">
+                                                <iconify-icon icon="solar:flag-2-bold" width="22"></iconify-icon>
+                                            </div>
+                                            <div class="country-summary-label">@T["tabs.common.name"]</div>
+                                            <div class="country-summary-value">
+                                                <CountryNameWithFlag Name="@CurrentCountryName"
+                                                                     FlagUrl="@GetCountryFlagUrl(CurrentCountryId)"
+                                                                     Size="22" />
+                                            </div>
+                                        </div>
+
+                                        <div class="country-summary-card building-card-large">
+                                            <div class="country-summary-icon">
+                                                <iconify-icon icon="solar:user-crown-bold" width="22"></iconify-icon>
+                                            </div>
+                                            <div class="country-summary-label">@T["tabs.country.president"]</div>
+                                            <div class="country-summary-value">
+                                                @if (CurrentPresidentPlayerId.HasValue && !string.IsNullOrWhiteSpace(CurrentPresidentPlayerName))
+                                                {
+                                                    <PlayerNameWithBadges PlayerId="@CurrentPresidentPlayerId" PlayerName="@CurrentPresidentPlayerName" />
+                                                }
+                                                else
+                                                {
+                                                    <text>@T["tabs.common.notElected"]</text>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <div class="country-summary-card building-card-large">
+                                            <div class="country-summary-icon">
+                                                <iconify-icon icon="solar:users-group-rounded-bold" width="22"></iconify-icon>
+                                            </div>
+                                            <div class="country-summary-label">@T["modals.country.overview.members"]</div>
+                                            <div class="country-summary-value">@CurrentMemberCount</div>
+                                        </div>
+
+                                        <div class="country-summary-card building-card-large">
+                                            <div class="country-summary-icon">
+                                                <iconify-icon icon="solar:swords-bold" width="22"></iconify-icon>
+                                            </div>
+                                            <div class="country-summary-label">@T["tabs.country.atWar"]</div>
+                                            <div class="country-summary-value">@ActiveWarCount</div>
+                                        </div>
+
+                                        <div class="country-summary-card building-card-large">
+                                            <div class="country-summary-icon">
+                                                <iconify-icon icon="solar:calendar-mark-bold" width="22"></iconify-icon>
+                                            </div>
+                                            <div class="country-summary-label">@T["tabs.common.nextAutoElection"]</div>
+                                            <div class="country-summary-value">@FormatTimeToNextElection(NextAutomaticPresidentSelectionAtUtc)</div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["modals.country.overview.taxTreasuryTitle"]</h6>
+                                    <div class="country-stat-grid">
+                                        <div class="country-stat-card">
+                                            <div class="country-stat-label">@T["modals.country.overview.countryTaxLabel"]</div>
+                                            <div class="country-stat-value">@($"{_country?.TaxPercent ?? 0m:0.##}%")</div>
+                                            <div class="country-stat-note">@T["modals.country.overview.countryTaxNote"]</div>
+                                        </div>
+                                        <div class="country-stat-card">
+                                            <div class="country-stat-label">@T["modals.country.overview.treasuryBalanceLabel"]</div>
+                                            <div class="country-stat-value">@FormatMoney(_country?.Money ?? 0m)</div>
+                                            <div class="country-stat-note">@T["modals.country.overview.treasuryBalanceNote"]</div>
+                                        </div>
+
+                                    </div>
+                                </div>
+
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["modals.country.overview.combatRulesTitle"]</h6>
+                                    <div class="country-combat-policy-grid">
+                                        <div class="country-policy-card building-card-large">
+                                            <div class="country-policy-head">
+                                                <div class="country-summary-icon">
+                                                    <iconify-icon icon="solar:shield-keyhole-bold" width="20"></iconify-icon>
+                                                </div>
+                                                <div>
+                                                    <div class="country-action-title">@T["modals.country.overview.attackInsideCountryTitle"]</div>
+                                                    <div class="country-action-subtitle">@T["modals.country.overview.attackInsideCountrySubtitle"]</div>
+                                                </div>
+                                            </div>
+                                            @if (CanManageCountry)
+                                            {
+                                                <label class="country-policy-toggle">
+                                                    <input type="checkbox" @bind="_editedAllowToAttackInsideCountry" />
+                                                    <span class="country-policy-toggle-slider"></span>
+                                                    <span class="country-policy-toggle-text">@(_editedAllowToAttackInsideCountry ? T["modals.country.common.allowed"] : T["modals.country.common.blocked"])</span>
+                                                </label>
+                                            }
+                                            else
+                                            {
+                                                <div class="country-policy-readonly @(_country?.IsAllowToAttackInsideCountry == true ? "is-enabled" : "is-disabled")">
+                                                    @(_country?.IsAllowToAttackInsideCountry == true ? T["modals.country.common.allowed"] : T["modals.country.common.blocked"])
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <div class="country-policy-card building-card-large">
+                                            <div class="country-policy-head">
+                                                <div class="country-summary-icon">
+                                                    <iconify-icon icon="solar:swords-bold" width="20"></iconify-icon>
+                                                </div>
+                                                <div>
+                                                    <div class="country-action-title">@T["modals.country.overview.attackWithoutWarTitle"]</div>
+                                                    <div class="country-action-subtitle">@T["modals.country.overview.attackWithoutWarSubtitle"]</div>
+                                                </div>
+                                            </div>
+                                            @if (CanManageCountry)
+                                            {
+                                                <label class="country-policy-toggle">
+                                                    <input type="checkbox" @bind="_editedAllowToAttackWithoutWarDeclaration" />
+                                                    <span class="country-policy-toggle-slider"></span>
+                                                    <span class="country-policy-toggle-text">@(_editedAllowToAttackWithoutWarDeclaration ? T["modals.country.common.allowed"] : T["modals.country.common.onlyDuringWar"])</span>
+                                                </label>
+                                            }
+                                            else
+                                            {
+                                                <div class="country-policy-readonly @(_country?.IsAllowToAttackWithoutWarDeclaration == true ? "is-enabled" : "is-disabled")">
+                                                    @(_country?.IsAllowToAttackWithoutWarDeclaration == true ? T["modals.country.common.allowed"] : T["modals.country.common.onlyDuringWar"])
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    @if (CanManageCountry)
+                                    {
+                                        <div class="d-flex justify-content-end mt-3">
+                                            <button type="button" class="btn btn-outline-warning" @onclick="SaveCountryCombatPolicyAsync">
+                                                @T["modals.country.overview.saveCombatRules"]
+                                            </button>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-warning mt-3">@T["modals.country.overview.onlyPresidentCombatRules"]</div>
+                                    }
+                                </div>
+                            }
+
+                            @if (_countryTab == CountrySubTab.Council)
+                            {
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["tabs.country.council.title"]</h6>
+                                    @if (_country?.Players.Count > 0)
+                                    {
+                                        <div class="country-council-tree">
+                                            @if (PresidentCouncilMember is not null)
+                                            {
+                                                var president = PresidentCouncilMember;
+                                                <div class="country-council-president-wrap">
+                                                    <div class="country-council-card country-council-card-president building-card-large">
+                                                        <div class="country-council-avatar-wrap">
+                                                            @if (!string.IsNullOrWhiteSpace(president.PlayerAvatar))
+                                                            {
+                                                                <img class="country-council-avatar" src="@president.PlayerAvatar" alt="@president.Name" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <div class="country-council-avatar country-council-avatar-fallback">
+                                                                    <iconify-icon icon="carbon:user-avatar-filled-alt" width="44"></iconify-icon>
+                                                                </div>
+                                                            }
+                                                            <span class="country-council-crown">
+                                                                <iconify-icon icon="mdi:crown" width="16"></iconify-icon>
+                                                            </span>
+                                                        </div>
+                                                        <div class="country-council-card-role">@T["tabs.country.council.rolePresident"]</div>
+                                                        <div class="country-council-card-name">
+                                                            <PlayerNameWithBadges PlayerId="@president.PlayersId" PlayerName="@president.Name" />
+                                                        </div>
+                                                        <div class="country-council-card-score">@president.Score.ToString("N2") @T["modals.country.common.pointsShort"]</div>
+                                                    </div>
+                                                </div>
+
+                                                @if (CouncilMembersBelowPresident.Count > 0)
+                                                {
+                                                    <div class="country-council-connector" aria-hidden="true">
+                                                        <span class="country-council-connector-line"></span>
+                                                    </div>
+                                                }
+                                            }
+
+                                            @if (CouncilMembersBelowPresident.Count > 0)
+                                            {
+                                                <div class="country-council-members-grid">
+                                                    @foreach (var member in CouncilMembersBelowPresident)
+                                                    {
+                                                        <div class="country-council-card country-council-card-member building-card-large">
+                                                            <div class="country-council-avatar-wrap">
+                                                                @if (!string.IsNullOrWhiteSpace(member.PlayerAvatar))
+                                                                {
+                                                                    <img class="country-council-avatar" src="@member.PlayerAvatar" alt="@member.Name" />
+                                                                }
+                                                                else
+                                                                {
+                                                                    <div class="country-council-avatar country-council-avatar-fallback">
+                                                                        <iconify-icon icon="carbon:user-avatar-filled-alt" width="36"></iconify-icon>
+                                                                    </div>
+                                                                }
+                                                            </div>
+                                                            <div class="country-council-card-role">@T["tabs.country.council.roleMember"]</div>
+                                                            <div class="country-council-card-name">
+                                                                <PlayerNameWithBadges PlayerId="@member.PlayersId" PlayerName="@member.Name" />
+                                                            </div>
+                                                            <div class="country-council-card-meta">
+                                                                <span>@member.Score.ToString("N2") @T["modals.country.common.pointsShort"]</span>
+                                                                @if (member.IsNpc)
+                                                                {
+                                                                    <span class="country-council-chip">@T["modals.player.npcBadge"]</span>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-muted">@T["tabs.country.council.empty"]</div>
+                                    }
+                                </div>
+                            }
+
+                            @if (_countryTab == CountrySubTab.Treasury)
+                            {
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["modals.country.treasury.title"]</h6>
+
+                                    @if (CanManageCountry)
+                                    {
+                                        <div class="country-action-card building-card-large">
+                                            <div class="country-action-card-head">
+                                                <div>
+                                                    <div class="country-action-title">@T["modals.country.treasury.taxManagementTitle"]</div>
+                                                    <div class="country-action-subtitle">@T["modals.country.treasury.taxManagementSubtitle"]</div>
+                                                </div>
+                                            </div>
+                                            <div class="row g-2 align-items-end">
+                                                <div class="col-12 col-md-5">
+                                                    <label class="form-label text-muted small">@T["modals.country.treasury.countryTaxPercent"]</label>
+                                                    <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" max="20" step="0.01" @bind="_editedCountryTaxPercent" />
+                                                </div>
+                                                <div class="col-12 col-md-4">
+                                                    <button type="button" class="btn btn-outline-warning w-100" @onclick="SaveCountryTaxAsync">
+                                                        @T["modals.country.treasury.setCountryTax"]
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-warning">@T["modals.country.treasury.onlyPresidentTax"]</div>
+                                    }
+                                </div>
+
+                            }
+
+                            @if (_countryTab == CountrySubTab.Buildings)
+                            {
+                                <div class="content-section inventory-root">
+                                    <div class="inventory-card-grid country-buildings-grid">
+                                        @foreach (var building in CountryBuildingCards)
+                                        {
+                                            <div class="building-card-large inventory-resource-card country-building-card">
+                                                <div class="inventory-resource-card-top">
+                                                    <div class="inventory-resource-icon-wrap">
+                                                        <img class="inventory-resource-icon country-building-icon" src="@building.IconPath" alt="@building.Label" />
+                                                    </div>
+                                                    <div class="inventory-resource-kicker">@building.Kicker</div>
+                                                </div>
+                                                <div class="inventory-resource-title">@building.Label</div>
+                                                <div class="inventory-resource-value">@FormatBuildingEfficiency(building.CurrentEfficiency)</div>
+
+                                                <div class="country-building-meta-list">
+                                                    <div class="country-building-meta-row">
+                                                        <span class="country-building-meta-label">@T["modals.country.buildings.currentLevel"]</span>
+                                                        <strong>@building.Level</strong>
+                                                    </div>
+                                                    <div class="country-building-meta-row">
+                                                        <span class="country-building-meta-label">@T["modals.country.buildings.upgradeCost"]</span>
+                                                        <strong>@FormatMoney(building.UpgradeCost)</strong>
+                                                    </div>
+                                                    <div class="country-building-meta-row">
+                                                        <span class="country-building-meta-label">@T["modals.country.buildings.upgradeBenefit"]</span>
+                                                        <strong>@building.BenefitLabel</strong>
+                                                    </div>
+                                                </div>
+
+                                                <button type="button"
+                                                        class="btn btn-outline-warning w-100 mt-3"
+                                                        @onclick="() => UpgradeCountryBuildingAsync(building.Code)"
+                                                        disabled="@(!CanManageCountry || !CanAffordCountryBuildingUpgrade(building))">
+                                                    @T["modals.country.buildings.upgrade"]
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    @if (!CanManageCountry)
+                                    {
+                                        <div class="small text-warning mt-3">@T["modals.country.buildings.onlyPresident"]</div>
+                                    }
+                                </div>
+                            }
+
+                            @if (_countryTab == CountrySubTab.Wars)
+                            {
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["modals.country.tradePolicy.title"]</h6>
+                                    @if (CanManageCountry)
+                                    {
+                                        <div class="country-action-card building-card-large mb-3 country-trade-policy-card @(_isPolicyCountryPickerOpen ? "country-trade-policy-card-open" : string.Empty)">
+                                            <div class="country-action-title">@T["modals.country.tradePolicy.diplomacyTitle"]</div>
+                                            <div class="country-action-subtitle">@T["modals.country.tradePolicy.diplomacySubtitle"]</div>
+                                            <div class="row g-2 align-items-end mt-1">
+                                                <div class="col-12 col-md-5">
+                                                    <label class="form-label text-muted small">@T["modals.country.tradePolicy.targetCountry"]</label>
+                                                    <div class="country-inline-picker">
+                                                        <button type="button"
+                                                                class="form-select bg-dark text-white border-white-10 country-inline-picker-trigger"
+                                                                @onclick="TogglePolicyCountryPicker"
+                                                                disabled="@(!CanManageCountry)">
+                                                            @if (SelectedPolicyCountry is not null)
+                                                            {
+                                                                <CountryNameWithFlag Name="@GetLocalizedCountryNameByCountryId(SelectedPolicyCountry.CountriesId)"
+                                                                                     FlagUrl="@GetCountryFlagUrl(SelectedPolicyCountry.CountriesId)"
+                                                                                     IsoCode2="@ResolveCountryIso2(SelectedPolicyCountry.CountriesId)"
+                                                                                     Size="18" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <span>@T["modals.country.tradePolicy.selectCountry"]</span>
+                                                            }
+                                                        </button>
+
+                                                        @if (_isPolicyCountryPickerOpen && CanManageCountry)
+                                                        {
+                                                            <div class="country-inline-picker-menu">
+                                                                @foreach (var country in AvailableDiplomacyCountries.OrderBy(c => GetLocalizedCountryNameByCountryId(c.CountriesId), StringComparer.CurrentCultureIgnoreCase))
+                                                                {
+                                                                    <button type="button" class="country-inline-picker-option" @onclick="() => SelectPolicyCountry(country.CountriesId)">
+                                                                        <CountryNameWithFlag Name="@GetLocalizedCountryNameByCountryId(country.CountriesId)"
+                                                                                             FlagUrl="@GetCountryFlagUrl(country.CountriesId)"
+                                                                                             IsoCode2="@ResolveCountryIso2(country.CountriesId)"
+                                                                                             Size="18" />
+                                                                    </button>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 col-md-3">
+                                                    <label class="form-label text-muted small">@T["modals.country.tradePolicy.tariffPercent"]</label>
+                                                    <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" max="200" step="0.01" @bind="_policyTariffPercent" />
+                                                </div>
+                                                <div class="col-12 col-md-2">
+                                                    <div class="form-check mt-4">
+                                                        <input class="form-check-input" type="checkbox" @bind="_policyEmbargo" id="policyEmbargoToggle" />
+                                                        <label class="form-check-label text-white" for="policyEmbargoToggle">@T["modals.country.tradePolicy.embargo"]</label>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 col-md-2 d-grid gap-2">
+                                                    <button type="button" class="btn btn-outline-warning" @onclick="SaveTradePolicyAsync">@T["modals.country.tradePolicy.save"]</button>
+                                                    <button type="button" class="btn btn-outline-danger" @onclick="RemoveTradePolicyAsync">@T["modals.country.tradePolicy.remove"]</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-warning mb-3">@T["modals.country.tradePolicy.onlyPresident"]</div>
+                                    }
+
+                                    @if (DisplayedTradePolicies.Count > 0)
+                                    {
+                                        <div class="country-card-grid">
+                                            @foreach (var policy in DisplayedTradePolicies)
+                                            {
+                                                <div class="country-resource-card building-card-large">
+                                                    <div class="country-resource-title">
+                                                        <CountryNameWithFlag Name="@policy.TargetCountries.Name"
+                                                                             FlagUrl="@GetCountryFlagUrl(policy.TargetCountriesId)"
+                                                                             Size="18" />
+                                                    </div>
+                                                    <div class="country-resource-value">@string.Format(T["modals.country.tradePolicy.tariffValue"], policy.TariffPercent.ToString("0.##"))</div>
+                                                    <div class="country-resource-meta">
+                                                        <span>@(policy.IsEmbargo ? T["modals.country.tradePolicy.embargoActive"] : T["modals.country.tradePolicy.tradeAllowed"])</span>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-muted">@T["modals.country.tradePolicy.noActivePolicies"]</div>
+                                    }
+                                </div>
+
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["tabs.country.warfare"]</h6>
+                                    <div class="small text-muted mb-2">@T["tabs.country.declareWarHint"]</div>
+
+                                    <div class="row g-2 align-items-center war-action-row">
+                                        <div class="col-12 col-lg-8">
+                                            <div class="country-inline-picker">
+                                                <button type="button"
+                                                        class="form-select bg-dark text-white border-white-10 country-inline-picker-trigger"
+                                                        @onclick="ToggleWarCountryPicker"
+                                                        disabled="@(!CanManageCountry)">
+                                                    @if (SelectedDefenderCountry is not null)
+                                                    {
+                                                        <CountryNameWithFlag Name="@GetLocalizedCountryNameByCountryId(SelectedDefenderCountry.CountriesId)"
+                                                                             FlagUrl="@GetCountryFlagUrl(SelectedDefenderCountry.CountriesId)"
+                                                                             IsoCode2="@ResolveCountryIso2(SelectedDefenderCountry.CountriesId)"
+                                                                             Size="18" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@T["tabs.common.selectTargetCountry"]</span>
+                                                    }
+                                                </button>
+
+                                                @if (_isWarCountryPickerOpen && CanManageCountry)
+                                                {
+                                                    <div class="country-inline-picker-menu">
+                                                        @foreach (var targetCountry in AvailableDiplomacyCountries.OrderBy(c => GetLocalizedCountryNameByCountryId(c.CountriesId), StringComparer.CurrentCultureIgnoreCase))
+                                                        {
+                                                            <button type="button" class="country-inline-picker-option" @onclick="() => SelectDefenderCountry(targetCountry.CountriesId)">
+                                                                <CountryNameWithFlag Name="@GetLocalizedCountryNameByCountryId(targetCountry.CountriesId)"
+                                                                                     FlagUrl="@GetCountryFlagUrl(targetCountry.CountriesId)"
+                                                                                     IsoCode2="@ResolveCountryIso2(targetCountry.CountriesId)"
+                                                                                     Size="18" />
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-12 col-lg-4 d-flex justify-content-lg-end">
+                                            <button class="btn btn-outline-danger war-declare-btn" @onclick="OpenDeclareCountryWarConfirm" disabled="@(!CanManageCountry || !_selectedDefenderCountryId.HasValue)">
+                                                @T["tabs.country.declareWar"]
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                @if (_showWarConfirm)
+                                {
+                                    <div class="war-inline-confirm mt-2">
+                                        <div class="small text-white fw-semibold mb-1">@T["tabs.country.confirmWar"]</div>
+                                        <div class="small text-muted mb-2">
+                                            @T["tabs.common.target"]:
+                                            <span class="text-white">
+                                                <CountryNameWithFlag Name="@PendingCountryTargetLabel"
+                                                                     FlagUrl="@(_pendingDefenderCountryId.HasValue ? GetCountryFlagUrl(_pendingDefenderCountryId.Value) : null)"
+                                                                     Size="16" />
+                                            </span>
+                                        </div>
+                                        <div class="small text-warning mb-2">@T["tabs.common.warTradeBlockedInfo"]</div>
+                                        <div class="d-flex gap-2 justify-content-end">
+                                            <button type="button" class="btn btn-sm btn-outline-light" @onclick="CloseDeclareCountryWarConfirm">@T["tabs.common.cancel"]</button>
+                                            <button type="button" class="btn btn-sm btn-danger" @onclick="ConfirmDeclareCountryWarAsync">@T["tabs.country.declareWar"]</button>
+                                        </div>
+                                    </div>
+                                }
+
+                                <div class="glass-card p-3 mb-3">
+                                    <h6 class="text-white mb-3 info-section-title">@T["tabs.country.wars"]</h6>
+                                    @if (DisplayedWars.Any())
+                                    {
+                                        <div class="country-war-range-switch mb-3">
+                                            <button class="management-tab @(GetWarRangeClass(CountryWarRange.Last24Hours))" @onclick="() => SetWarRangeAsync(CountryWarRange.Last24Hours)">@T["modals.country.wars.range.last24Hours"]</button>
+                                            <button class="management-tab @(GetWarRangeClass(CountryWarRange.Last7Days))" @onclick="() => SetWarRangeAsync(CountryWarRange.Last7Days)">@T["modals.country.wars.range.last7Days"]</button>
+                                            <button class="management-tab @(GetWarRangeClass(CountryWarRange.AllWar))" @onclick="() => SetWarRangeAsync(CountryWarRange.AllWar)">@T["tabs.common.all"]</button>
+                                        </div>
+                                        <div class="country-card-grid">
+                                            @foreach (var war in DisplayedWars)
+                                            {
+                                                var opponentCountryId = GetWarOpponentCountryId(war);
+                                                var details = GetWarDetails(war.CountryWarsId);
+                                                <div class="country-resource-card building-card-large country-war-card">
+                                                    <div class="country-war-card-top">
+                                                        <span class="war-status @(war.CountryFromId == CurrentCountryId ? "war-status-attack" : "war-status-defend")">@(war.CountryFromId == CurrentCountryId ? T["tabs.common.attack"] : T["tabs.common.defend"])</span>
+                                                        <span class="country-war-state">@GetWarStatusLabel(war)</span>
+                                                    </div>
+
+                                                    <div class="country-resource-title country-war-title">
+                                                        <CountryNameWithFlag Name="@GetLocalizedCountryNameByCountryId(opponentCountryId)"
+                                                                             FlagUrl="@GetCountryFlagUrl(opponentCountryId)"
+                                                                             IsoCode2="@ResolveCountryIso2(opponentCountryId)"
+                                                                             Size="18" />
+                                                    </div>
+
+                                                    <div class="country-resource-meta country-war-meta">
+                                                        <span>@T["tabs.common.target"]</span>
+                                                        <span>@FormatWarStartedAt(war.StartedAt)</span>
+                                                    </div>
+
+                                                    @if (details is not null)
+                                                    {
+                                                        <div class="country-war-progress-block">
+                                                            <div class="country-war-progress-head">
+                                                                <span>@T["modals.country.wars.attackerSieges"]</span>
+                                                                <strong>@details.AttackerProgressPercent.ToString("0.#")% / @details.CaptureThresholdPercent.ToString("0.#")%</strong>
+                                                            </div>
+                                                            <div class="country-war-progress-bar">
+                                                                <div class="country-war-progress-fill" style="width:@GetWarProgressWidth(details)"></div>
+                                                            </div>
+                                                            <div class="country-war-progress-meta">
+                                                                <span>@string.Format(T["modals.country.wars.attackerActiveSiegesMeta"], details.AttackerActiveSieges, details.DefenderTotalPlayers)</span>
+                                                                <span>@string.Format(T["modals.country.wars.range.label"], GetWarRangeLabel())</span>
+                                                            </div>
+                                                            <div class="country-war-progress-hint">
+                                                                @GetWarProgressHint(details)
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="country-war-progress-block">
+                                                            <div class="country-war-progress-head">
+                                                                <span>@T["modals.country.wars.defenderCounterSieges"]</span>
+                                                                <strong>@details.DefenderProgressPercent.ToString("0.#")% / @details.DefenderCancelThresholdPercent.ToString("0.#")%</strong>
+                                                            </div>
+                                                            <div class="country-war-progress-bar">
+                                                                <div class="country-war-progress-fill" style="width:@GetDefenderWarProgressWidth(details)"></div>
+                                                            </div>
+                                                            <div class="country-war-progress-meta">
+                                                                <span>@string.Format(T["modals.country.wars.defenderActiveSiegesMeta"], details.DefenderActiveSieges, details.AttackerTotalPlayers)</span>
+                                                                <span>@T["modals.country.wars.cancelThresholdHint"]</span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="country-war-stats-grid">
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.battles"]</span>
+                                                                <strong>@details.BattlesInRange</strong>
+                                                            </div>
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.attackMissions"]</span>
+                                                                <strong>@details.AttackMissionsInRange</strong>
+                                                            </div>
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.sieges"]</span>
+                                                                <strong>@details.ActiveSieges</strong>
+                                                            </div>
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.unitsSent"]</span>
+                                                                <strong>@details.UnitsSentInRange</strong>
+                                                            </div>
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.attackSent"]</span>
+                                                                <strong>@details.AttackPowerSentInRange</strong>
+                                                            </div>
+                                                            <div class="country-war-stat-card">
+                                                                <span>@T["modals.country.wars.defenseSent"]</span>
+                                                                <strong>@details.DefensePowerSentInRange</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="country-war-losses">
+                                                            <div>@T["modals.country.wars.attackerWins"]: <strong>@details.AttackerWinsInRange</strong></div>
+                                                            <div>@T["modals.country.wars.defenderWins"]: <strong>@details.DefenderWinsInRange</strong></div>
+                                                            <div>@T["modals.country.wars.attackerLosses"]: <strong>@details.AttackerLossesInRange</strong></div>
+                                                            <div>@T["modals.country.wars.defenderLosses"]: <strong>@details.DefenderLossesInRange</strong></div>
+                                                        </div>
+
+                                                        @if (details.TopUnitsInRange.Any())
+                                                        {
+                                                            <div class="country-war-units">
+                                                                <div class="country-war-units-title">@T["modals.country.wars.topUnitsInRange"]</div>
+                                                                @foreach (var unit in details.TopUnitsInRange)
+                                                                {
+                                                                    <div class="country-war-unit-row">
+                                                                        <span>@TranslateUnitCode(unit.UnitCode)</span>
+                                                                        <span>@string.Format(T["modals.country.wars.quantityUnits"], unit.Quantity)</span>
+                                                                        <span>@T["modals.country.wars.attackShort"] @unit.AttackPower</span>
+                                                                        <span>@T["modals.country.wars.defenseShort"] @unit.DefensePower</span>
+                                                                    </div>
+                                                                }
+                                                            </div>
+                                                        }
+                                                    }
+
+                                                    @if (CanManageCountry && string.Equals(war.Status, "active", StringComparison.OrdinalIgnoreCase) && war.CountryFromId == CurrentCountryId)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-warning country-war-action" @onclick="() => OpenCancelCountryWarConfirm(war.CountryWarsId)">
+                                                            @T["tabs.country.confirmCancelWar"]
+                                                        </button>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+                                    else
+                                    {
+                                        <div class="small text-muted">@T["tabs.common.noActiveWars"]</div>
+                                    }
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    protected override async Task OnAppStateChangedAsync()
+    {
+        if (AppState.ActiveModal == ModalTypesEnum.Country)
+        {
+            await LoadCountryAsync();
+        }
+    }
+
+    private void CloseModal()
+    {
+        ClearActionFeedback();
+        AppState.CloseModal();
+    }
+
+    private enum CountrySubTab
+    {
+        Overview,
+        Council,
+        Treasury,
+        Buildings,
+        Wars
+    }
+
+    private Country? _country;
+    private List<Country> _allCountries = [];
+    private Guid? _selectedDefenderCountryId;
+    private Guid? _pendingDefenderCountryId;
+    private Guid? _pendingCancelWarId;
+    private Guid? _selectedPolicyCountryId;
+    private bool _isPolicyCountryPickerOpen;
+    private bool _isWarCountryPickerOpen;
+    private string? _actionError;
+    private string? _actionSuccess;
+    private bool _isLoading;
+    private bool _showWarConfirm;
+    private bool _showCancelWarConfirm;
+    private decimal _editedCountryTaxPercent;
+    private bool _editedAllowToAttackInsideCountry;
+    private bool _editedAllowToAttackWithoutWarDeclaration;
+    private decimal _policyTariffPercent;
+    private bool _policyEmbargo;
+    private CountrySubTab _countryTab = CountrySubTab.Overview;
+    private CountryWarRange _warRange = CountryWarRange.Last24Hours;
+    private Dictionary<Guid, CountryWarDetailsModel> _warDetailsById = [];
+    private bool CanManageCountry => _country?.PresidentPlayersId == AppState.MyPlayer?.PlayersId;
+    private Player? PresidentCouncilMember => _country?.Players.FirstOrDefault(player => player.PlayersId == _country.PresidentPlayersId)
+        ?? _country?.Players.OrderByDescending(player => player.Score).FirstOrDefault();
+    private List<Player> CouncilMembersBelowPresident => _country?.Players
+        .Where(player => player.PlayersId != _country.PresidentPlayersId)
+        .OrderByDescending(player => player.Score)
+        .Take(9)
+        .ToList()
+        ?? [];
+    private IEnumerable<Country> AvailableDiplomacyCountries => _allCountries.Where(c => _country == null || c.CountriesId != _country.CountriesId);
+    private Country? SelectedPolicyCountry => _selectedPolicyCountryId.HasValue
+        ? _allCountries.FirstOrDefault(country => country.CountriesId == _selectedPolicyCountryId.Value)
+        : null;
+    private Country? SelectedDefenderCountry => _selectedDefenderCountryId.HasValue
+        ? _allCountries.FirstOrDefault(country => country.CountriesId == _selectedDefenderCountryId.Value)
+        : null;
+    private IReadOnlyList<CountryBuildingCardModel> CountryBuildingCards => BuildCountryBuildingCards();
+    private IReadOnlyList<CountryWar> DisplayedWars => GetDisplayedWars();
+    private IReadOnlyList<CountryTradePolicy> DisplayedTradePolicies => _country?.CountryTradePolicySourceCountries
+        .OrderByDescending(policy => policy.IsEmbargo)
+        .ThenByDescending(policy => policy.TariffPercent)
+        .ToList()
+        ?? [];
+    private Guid CurrentCountryId => _country?.CountriesId ?? Guid.Empty;
+    private string CurrentCountryName => _country?.Name ?? string.Empty;
+    private Guid? CurrentPresidentPlayerId => PresidentCouncilMember?.PlayersId;
+    private string? CurrentPresidentPlayerName => PresidentCouncilMember?.Name;
+    private int CurrentMemberCount => _country?.Players.Count ?? 0;
+    private int ActiveWarCount => DisplayedWars.Count(war => string.Equals(war.Status, "active", StringComparison.OrdinalIgnoreCase));
+    private DateTime NextAutomaticPresidentSelectionAtUtc => GetNextMonthlySelectionAtUtc(DateTime.UtcNow);
+
+    private enum CountryWarRange
+    {
+        Last24Hours,
+        Last7Days,
+        AllWar
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadCountryAsync();
+    }
+
+    private Country? ResolveCurrentCountry()
+    {
+        if (AppState.ClickedLastCountryId.HasValue)
+        {
+            return _allCountries.FirstOrDefault(c => c.CountriesId == AppState.ClickedLastCountryId.Value);
+        }
+
+        return _allCountries.FirstOrDefault(c => c.CountriesId == AppState.MyPlayer.CountriesId);
+
+    }
+
+    private async Task LoadCountryAsync()
+    {
+        _isLoading = true;
+        try
+        {
+            _allCountries = (await CountriesService.GetAllCountriesAsync())
+                .OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase)
+                .ToList();
+
+            var country = ResolveCurrentCountry();
+
+            if (country == null)
+            {
+                _country = null;
+                return;
+            }
+
+            _country = await CountryGovernanceService.GetCountryDetailsAsync(country.CountriesId);
+            _editedCountryTaxPercent = _country?.TaxPercent ?? 0m;
+            _editedAllowToAttackInsideCountry = _country?.IsAllowToAttackInsideCountry ?? false;
+            _editedAllowToAttackWithoutWarDeclaration = _country?.IsAllowToAttackWithoutWarDeclaration ?? false;
+            await RefreshWarDetailsAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RefreshCountryAsync()
+    {
+        if (_country is null)
+        {
+            return;
+        }
+
+        _country = await CountryGovernanceService.GetCountryDetailsAsync(_country.CountriesId);
+        _editedCountryTaxPercent = _country?.TaxPercent ?? 0m;
+        _editedAllowToAttackInsideCountry = _country?.IsAllowToAttackInsideCountry ?? false;
+        _editedAllowToAttackWithoutWarDeclaration = _country?.IsAllowToAttackWithoutWarDeclaration ?? false;
+        await RefreshWarDetailsAsync();
+    }
+
+    private Task SetCountryTabAsync(CountrySubTab tab)
+    {
+        ClearActionFeedback();
+        _countryTab = tab;
+        return Task.CompletedTask;
+    }
+
+    private void ClearActionFeedback()
+    {
+        _actionError = null;
+        _actionSuccess = null;
+    }
+
+    private async Task SetWarRangeAsync(CountryWarRange range)
+    {
+        if (_warRange == range)
+        {
+            return;
+        }
+
+        _warRange = range;
+        await RefreshWarDetailsAsync();
+    }
+
+    private string GetTabClass(CountrySubTab tab) => _countryTab == tab ? "active" : string.Empty;
+    private string GetWarRangeClass(CountryWarRange range) => _warRange == range ? "active" : string.Empty;
+    private void TogglePolicyCountryPicker()
+    {
+        _isPolicyCountryPickerOpen = !_isPolicyCountryPickerOpen;
+        if (_isPolicyCountryPickerOpen)
+        {
+            _isWarCountryPickerOpen = false;
+        }
+    }
+
+    private void ToggleWarCountryPicker()
+    {
+        _isWarCountryPickerOpen = !_isWarCountryPickerOpen;
+        if (_isWarCountryPickerOpen)
+        {
+            _isPolicyCountryPickerOpen = false;
+        }
+    }
+
+    private void SelectPolicyCountry(Guid countryId)
+    {
+        _selectedPolicyCountryId = countryId;
+        _isPolicyCountryPickerOpen = false;
+    }
+
+    private void SelectDefenderCountry(Guid countryId)
+    {
+        _selectedDefenderCountryId = countryId;
+        _isWarCountryPickerOpen = false;
+    }
+
+    private void OpenDeclareCountryWarConfirm()
+    {
+        if (!_selectedDefenderCountryId.HasValue)
+        {
+            return;
+        }
+
+        _pendingDefenderCountryId = _selectedDefenderCountryId;
+        _showWarConfirm = true;
+    }
+
+    private void CloseDeclareCountryWarConfirm()
+    {
+        _showWarConfirm = false;
+        _pendingDefenderCountryId = null;
+    }
+
+    private async Task ConfirmDeclareCountryWarAsync()
+    {
+        if (_country == null || !_pendingDefenderCountryId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            await CountryGovernanceService.DeclareCountryWarAsync(AppState.MyPlayer.PlayersId, _pendingDefenderCountryId.Value);
+            _actionSuccess = T["tabs.country.warDeclared"];
+            _selectedDefenderCountryId = null;
+            _isWarCountryPickerOpen = false;
+            CloseDeclareCountryWarConfirm();
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to declare war against country {DefenderCountryId}.", _pendingDefenderCountryId);
+            _actionError = ex.Message;
+        }
+    }
+
+    private void OpenCancelCountryWarConfirm(Guid warId)
+    {
+        _pendingCancelWarId = warId;
+        _showCancelWarConfirm = true;
+    }
+
+    private async Task SaveCountryTaxAsync()
+    {
+        try
+        {
+            await CountryGovernanceService.SetCountryTaxAsync(AppState.MyPlayer.PlayersId, _editedCountryTaxPercent);
+            _actionSuccess = T["modals.country.success.taxUpdated"];
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to save tax for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _actionError = ex.Message;
+        }
+    }
+
+    private async Task SaveCountryCombatPolicyAsync()
+    {
+        try
+        {
+            await CountryGovernanceService.SetCountryCombatPolicyAsync(
+                AppState.MyPlayer.PlayersId,
+                _editedAllowToAttackInsideCountry,
+                _editedAllowToAttackWithoutWarDeclaration);
+            _actionSuccess = T["modals.country.success.combatPolicyUpdated"];
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to save combat policy for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _actionError = ex.Message;
+        }
+    }
+
+    private async Task UpgradeCountryBuildingAsync(string buildingCode)
+    {
+        try
+        {
+            await CountryGovernanceService.UpgradeCountryBuildingAsync(AppState.MyPlayer.PlayersId, buildingCode);
+            _actionSuccess = T["modals.country.success.buildingUpgraded"];
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to upgrade building {BuildingCode} for player {PlayerId}.", buildingCode, AppState.MyPlayer?.PlayersId);
+            _actionError = ex.Message;
+        }
+    }
+
+    private async Task SaveTradePolicyAsync()
+    {
+        if (AppState.MyPlayer == null || !_selectedPolicyCountryId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            await CountryGovernanceService.UpsertCountryTradePolicyAsync(
+                AppState.MyPlayer.PlayersId,
+                _selectedPolicyCountryId.Value,
+                _policyEmbargo,
+                _policyTariffPercent);
+
+            _actionSuccess = T["modals.country.success.tradePolicySaved"];
+            _isPolicyCountryPickerOpen = false;
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to save trade policy for target country {TargetCountryId}.", _selectedPolicyCountryId);
+            _actionError = ex.Message;
+        }
+    }
+
+    private async Task RemoveTradePolicyAsync()
+    {
+        if (!_selectedPolicyCountryId.HasValue)
+        {
+            return;
+        }
+
+        try
+        {
+            await CountryGovernanceService.RemoveCountryTradePolicyAsync(
+                AppState.MyPlayer.PlayersId,
+                _selectedPolicyCountryId.Value);
+            _actionSuccess = T["modals.country.success.tradePolicyRemoved"];
+            _isPolicyCountryPickerOpen = false;
+            await RefreshCountryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "CountryManagementModal failed to remove trade policy for target country {TargetCountryId}.", _selectedPolicyCountryId);
+            _actionError = ex.Message;
+        }
+    }
+    
+    private string GetWarStatusLabel(CountryWar war)
+        => war.Status == CountryWarStatus.Active.ToDbValue()
+            ? T["tabs.common.active"]
+            : T["tabs.common.completed"];
+
+    private string SelectedCountryLabel => _selectedDefenderCountryId.HasValue
+        ? GetLocalizedCountryNameByCountryId(_selectedDefenderCountryId.Value)
+        : T["tabs.common.selectTargetCountry"];
+
+    private string PendingCountryTargetLabel => _pendingDefenderCountryId.HasValue
+        ? GetLocalizedCountryNameByCountryId(_pendingDefenderCountryId.Value)
+        : T["tabs.country.unknownCountry"];
+
+    private string GetLocalizedCountryNameByCountryId(Guid countryId)
+    {
+        var iso = ResolveCountryIso2(countryId);
+        if (!string.IsNullOrWhiteSpace(iso))
+        {
+            var localized = T[$"countries.name.{iso.ToUpperInvariant()}"];
+            if (!string.Equals(localized, $"countries.name.{iso.ToUpperInvariant()}", StringComparison.Ordinal))
+            {
+                return localized;
+            }
+        }
+
+        return _allCountries.FirstOrDefault(c => c.CountriesId == countryId)?.Name ?? T["tabs.common.selectTargetCountry"];
+    }
+
+    private string? ResolveCountryIso2(Guid countryId)
+    {
+        var country = _allCountries.FirstOrDefault(c => c.CountriesId == countryId);
+        if (country == null || string.IsNullOrWhiteSpace(country.IsoCode2))
+        {
+            return null;
+        }
+
+        return new string(country.IsoCode2.Trim().ToUpperInvariant().Where(char.IsLetter).Take(2).ToArray());
+    }
+
+    private string? GetCountryFlagUrl(Guid countryId)
+    {
+        var country = _allCountries.FirstOrDefault(c => c.CountriesId == countryId);
+        if (country == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(country.Flag))
+        {
+            var rawFlag = country.Flag.Trim();
+            if (rawFlag.Length <= 3 && !rawFlag.Contains("/") && !rawFlag.Contains(":"))
+            {
+                return $"https://flagcdn.com/w40/{rawFlag.ToLowerInvariant()}.png";
+            }
+
+            return rawFlag;
+        }
+
+        if (!string.IsNullOrWhiteSpace(country.IsoCode2))
+        {
+            var code = new string(country.IsoCode2.Trim().ToLowerInvariant().Where(char.IsLetter).Take(2).ToArray());
+            if (code.Length == 2)
+            {
+                return $"https://flagcdn.com/w40/{code}.png";
+            }
+        }
+
+        return null;
+    }
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+
+    private static DateTime GetNextMonthlySelectionAtUtc(DateTime nowUtc)
+    {
+        var normalizedUtc = nowUtc.Kind == DateTimeKind.Utc
+            ? nowUtc
+            : DateTime.SpecifyKind(nowUtc, DateTimeKind.Utc);
+
+        return new DateTime(normalizedUtc.Year, normalizedUtc.Month, 1, 0, 0, 0, DateTimeKind.Utc)
+            .AddMonths(1);
+    }
+
+    private IReadOnlyList<CountryWar> GetDisplayedWars()
+    {
+        if (_country is null)
+        {
+            return [];
+        }
+
+        return _country.CountryWarCountryFroms
+            .Concat(_country.CountryWarCountryTos)
+            .Where(war => string.Equals(war.Status, CountryWarStatus.Active.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+            .GroupBy(war => war.CountryWarsId)
+            .Select(group => group.First())
+            .OrderByDescending(war => war.StartedAt)
+            .ThenByDescending(war => war.EndedAt)
+            .ToList();
+    }
+
+    private Guid GetWarOpponentCountryId(CountryWar war)
+        => war.CountryFromId == CurrentCountryId ? war.CountryToId : war.CountryFromId;
+
+    private CountryWarDetailsModel? GetWarDetails(Guid warId)
+        => _warDetailsById.TryGetValue(warId, out var details) ? details : null;
+
+    private async Task RefreshWarDetailsAsync()
+    {
+        _warDetailsById = [];
+
+        if (_country is null)
+        {
+            return;
+        }
+
+        var details = await CountriesService.GetCountryWarDetailsAsync(_country.CountriesId, GetWarRangeHours());
+        _warDetailsById = details.ToDictionary(item => item.WarId, item => item);
+    }
+
+    private int GetWarRangeHours()
+        => _warRange switch
+        {
+            CountryWarRange.Last24Hours => 24,
+            CountryWarRange.Last7Days => 24 * 7,
+            _ => 0
+        };
+
+    private string GetWarRangeLabel()
+        => _warRange switch
+        {
+            CountryWarRange.Last24Hours => T["modals.country.wars.range.last24Hours"],
+            CountryWarRange.Last7Days => T["modals.country.wars.range.last7Days"],
+            _ => T["modals.country.wars.range.allWar"]
+        };
+
+    private static string GetWarProgressWidth(CountryWarDetailsModel details)
+    {
+        var normalized = details.CaptureThresholdPercent <= 0m
+            ? 0m
+            : Math.Min(100m, Math.Max(0m, (details.AttackerProgressPercent / details.CaptureThresholdPercent) * 100m));
+        return $"{normalized.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%";
+    }
+
+    private string GetWarProgressHint(CountryWarDetailsModel details)
+        => details.IsAttacker
+            ? T["modals.country.wars.attackerProgressHint"]
+            : T["modals.country.wars.defenderProgressHint"];
+
+    private static string GetDefenderWarProgressWidth(CountryWarDetailsModel details)
+    {
+        var normalized = details.DefenderCancelThresholdPercent <= 0m
+            ? 0m
+            : Math.Min(100m, Math.Max(0m, (details.DefenderProgressPercent / details.DefenderCancelThresholdPercent) * 100m));
+        return $"{normalized.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)}%";
+    }
+
+    private string TranslateUnitCode(string unitCode)
+        => T[$"tabs.military.unit.code.{unitCode}"];
+
+    private string FormatWarStartedAt(DateTime startedAt)
+        => $"{T["tabs.common.since"]} {startedAt.ToLocalTime():dd.MM.yyyy HH:mm}";
+
+    private string FormatTimeToNextElection(DateTime nextElectionAtUtc)
+    {
+        var remaining = nextElectionAtUtc - DateTime.UtcNow;
+        if (remaining < TimeSpan.Zero)
+        {
+            remaining = TimeSpan.Zero;
+        }
+
+        return string.Format(T["tabs.country.time.daysHoursMinutes"], (int)remaining.TotalDays, remaining.Hours, remaining.Minutes);
+    }
+
+    private IReadOnlyList<CountryBuildingCardModel> BuildCountryBuildingCards()
+    {
+        var buildings = _country?.CountryBuildings
+            .GroupBy(building => building.BuildingCode, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(building => building.Level)
+                .ThenByDescending(building => building.StartedAt)
+                .First())
+            .ToList()
+            ?? [];
+
+        return
+        [
+            BuildCountryBuildingCard(
+                "refinery",
+                T["modals.country.buildings.refinery"],
+                T["modals.country.buildings.kicker"],
+                "/assets/icons/buildings/refinery.png",
+                T["modals.country.buildings.resource.oil"]),
+            BuildCountryBuildingCard(
+                "power_station",
+                T["modals.country.buildings.powerStation"],
+                T["modals.country.buildings.kicker"],
+                "/assets/icons/buildings/power_station.png",
+                T["modals.country.buildings.resource.uranium"]),
+            BuildCountryBuildingCard(
+                "factory",
+                T["modals.country.buildings.factory"],
+                T["modals.country.buildings.kicker"],
+                "/assets/icons/buildings/factory.png",
+                T["modals.country.buildings.resource.chips"]),
+            BuildCountryBuildingCard(
+                "bank",
+                T["modals.country.buildings.bank"],
+                T["modals.country.buildings.kicker"],
+                "/assets/icons/buildings/bank.png",
+                T["modals.player.detail.money"])
+        ];
+
+        CountryBuildingCardModel BuildCountryBuildingCard(string code, string label, string kicker, string iconPath, string resourceName)
+        {
+            var building = buildings.FirstOrDefault(item => string.Equals(item.BuildingCode, code, StringComparison.OrdinalIgnoreCase));
+            var level = building?.Level ?? 0;
+            var targetLevel = level + 1;
+            var upgradeCost = GetCountryBuildingUpgradeCost(code, targetLevel);
+            var currentEfficiency = BuildingUnitEngine.GetProductionEfficiency(code, level);
+            var nextEfficiency = BuildingUnitEngine.GetProductionEfficiency(code, targetLevel);
+            var efficiencyGain = Math.Max(0m, nextEfficiency - currentEfficiency);
+            return new CountryBuildingCardModel(
+                code,
+                kicker,
+                label,
+                iconPath,
+                level,
+                currentEfficiency,
+                upgradeCost,
+                string.Format(T["modals.country.buildings.benefitPerTick"], efficiencyGain.ToString("0.##"), resourceName));
+        }
+    }
+
+    private static decimal GetCountryBuildingUpgradeCost(string buildingCode, int targetLevel)
+        => BuildingUnitEngine.GetUpgradeCost(buildingCode, targetLevel);
+
+    private bool CanAffordCountryBuildingUpgrade(CountryBuildingCardModel building)
+        => (_country?.Money ?? 0m) >= building.UpgradeCost;
+
+    private static string FormatBuildingEfficiency(decimal efficiency)
+        => $"x{efficiency:0.##}";
+
+    private sealed record CountryBuildingCardModel(
+        string Code,
+        string Kicker,
+        string Label,
+        string IconPath,
+        int Level,
+        decimal CurrentEfficiency,
+        decimal UpgradeCost,
+        string BenefitLabel);
+
+}

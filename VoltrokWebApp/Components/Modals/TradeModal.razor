@@ -1,0 +1,907 @@
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Premium
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+@using VoltrokWebApp.Components.Parts
+
+@inherits AppStateComponentBase
+
+@inject PlayersService PlayersService
+@inject PlayerTradeService PlayerTradeService
+@inject PremiumService PremiumService
+@inject IConfiguration Configuration
+@inject IJSRuntime JsRuntime
+
+@if (AppState.ActiveModal == ModalTypesEnum.Trades)
+{
+    <div class="info-overlay full-page" @onclick:stopPropagation="true">
+        <div class="info-dialog glass-panel full-page-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-body-container">
+                <div class="main-content-panel">
+                    <div class="content-section">
+                        <div class="management-tabs mb-4">
+                            @foreach (var subTab in TradeSubTabs)
+                            {
+                                <button type="button"
+                                        class="management-tab @(subTab.Tab == _activeTradeSubTab ? "active" : null)"
+                                        @onclick="() => SelectTradeSubTabAsync(subTab.Tab)">
+                                    <img src="@subTab.IconPath" alt="@subTab.Label" class="trade-subtab-icon" />
+                                    @subTab.Label
+                                </button>
+                            }
+
+                            <button type="button" class="management-tab modal-close-tab ms-auto" @onclick="CloseModal">
+                                <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                                @T["layout.main.dismiss"]
+                            </button>
+                        </div>
+
+                        @if (IsNewOfferTab)
+                        {
+                            <div class="glass-card p-3 mb-3 trade-offer-builder">
+                                <div class="trade-offer-builder-head">
+                                    <div>
+                                        <h6 class="text-white mb-1">@T["modals.trade.newOffer"]</h6>
+                                        <p class="trade-offer-builder-subtitle mb-0">@T["modals.trade.builder.subtitle"]</p>
+                                    </div>
+                                </div>
+
+                                <div class="trade-resource-picker">
+                                    @foreach (var resource in TradeOfferResources)
+                                    {
+                                        var isSelected = _selectedResourceCode == resource.Code;
+                                        <button type="button"
+                                                class="trade-resource-tile @(isSelected ? "selected" : null)"
+                                                @onclick="() => SelectResource(resource.Code)">
+                                            <img src="@resource.IconPath" alt="@resource.Label" class="trade-resource-tile-icon" />
+                                            <span class="trade-resource-tile-label">@resource.Label</span>
+                                            <span class="trade-resource-tile-balance">
+                                                <span class="trade-resource-tile-balance-label">@T["modals.trade.builder.owned"]</span>
+                                                <span class="trade-resource-tile-balance-value">@GetOwnedResourceAmount(resource.Code).ToString("N0")</span>
+                                            </span>
+                                        </button>
+                                    }
+                                </div>
+
+                                @if (_selectedResourceCode.HasValue)
+                                {
+                                    <div class="trade-offer-config mt-4">
+                                        @if (CanShowOfferSummary)
+                                        {
+                                            <div class="trade-offer-summary mt-4">
+                                                <div @ref="_offerSummaryAnchor"></div>
+                                                <div class="trade-offer-summary-top">
+                                                    <div class="trade-offer-summary-resource">
+                                                        <img src="@GetSelectedResourceIconPath()" alt="@GetSelectedResourceLabel()" class="trade-offer-summary-icon" />
+                                                        <div>
+                                                            <div class="trade-offer-summary-kicker">@T["modals.trade.builder.offerSummary"]</div>
+                                                            <div class="trade-offer-summary-title">@GetSelectedResourceLabel()</div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="trade-offer-summary-total">@FormatMoney(GetOfferTotalPrice())</div>
+                                                </div>
+
+                                                <div class="trade-offer-summary-grid">
+                                                    <div class="trade-offer-summary-item">
+                                                        <span class="trade-offer-summary-label">@T["modals.trade.quantity"]</span>
+                                                        <input type="number"
+                                                               class="form-control bg-dark border-white-10 text-white trade-offer-summary-input"
+                                                               min="1"
+                                                               step="1"
+                                                               value="@_newQuantity"
+                                                               @oninput="HandleNewOfferQuantityInput" />
+                                                        <small class="trade-offer-summary-note">@string.Format(T["modals.trade.builder.ownedAmount"], GetOwnedResourceAmount(_selectedResourceCode.Value).ToString("N0"))</small>
+                                                    </div>
+                                                    <div class="trade-offer-summary-item">
+                                                        <span class="trade-offer-summary-label">@T["modals.trade.pricePerUnit"]</span>
+                                                        <input type="number"
+                                                               class="form-control bg-dark border-white-10 text-white trade-offer-summary-input"
+                                                               min="0.01"
+                                                               step="0.01"
+                                                               value="@FormatEditablePrice(_newPrice)"
+                                                               @oninput="HandleNewOfferPriceInput" />
+                                                        <small class="trade-offer-summary-note">@T["modals.trade.builder.perSinglePiece"]</small>
+                                                    </div>
+                                                    <div class="trade-offer-summary-item">
+                                                        <span class="trade-offer-summary-label">@T["tabs.trade.total"]</span>
+                                                        <strong>@FormatMoney(GetOfferTotalPrice())</strong>
+                                                    </div>
+                                                </div>
+
+                                                <div class="trade-offer-summary-actions">
+                                                    <button class="btn btn-primary"
+                                                            @onclick="CreateOfferAsync"
+                                                            disabled="@(_isSubmittingOffer || !CanSubmitOffer)">
+                                                        @T["modals.trade.addOffer"]
+                                                    </button>
+                                                    <button type="button" class="btn btn-outline-light" @onclick="CancelNewOfferAsync">
+                                                        @T["tabs.common.cancel"]
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                        }
+
+                        @if (!string.IsNullOrEmpty(_errorMessage))
+                        {
+                            <div class="alert alert-danger mb-3 border-0 bg-danger bg-opacity-10 text-danger" role="alert">
+                                @_errorMessage
+                            </div>
+                        }
+
+                        @if (!IsNewOfferTab)
+                        {
+                            <details class="glass-card p-3 mb-3 trade-filters-panel">
+                                <summary class="trade-filters-summary">
+                                    <div class="trade-filters-summary-copy">
+                                        <span class="trade-filters-summary-label">@T["modals.trade.filter.title"]</span>
+                                    </div>
+                                    <iconify-icon icon="solar:alt-arrow-down-bold" class="trade-filters-summary-icon"></iconify-icon>
+                                </summary>
+
+                                <div class="trade-filters-body">
+                                    <div class="row g-2 align-items-end">
+                                        <div class="col-md-2">
+                                            <label class="form-label text-muted small">@T["modals.trade.filter.priceFrom"]</label>
+                                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" step="0.01" value="@FormatNullableDecimal(_filterPriceFrom)" @oninput="HandleFilterPriceFromInput" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label text-muted small">@T["modals.trade.filter.priceTo"]</label>
+                                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" step="0.01" value="@FormatNullableDecimal(_filterPriceTo)" @oninput="HandleFilterPriceToInput" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label text-muted small">@T["modals.trade.filter.deliveryFromHours"]</label>
+                                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" step="0.1" value="@FormatNullableDecimal(_filterDeliveryHoursFrom)" @oninput="HandleFilterDeliveryHoursFromInput" />
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label class="form-label text-muted small">@T["modals.trade.filter.deliveryToHours"]</label>
+                                            <input type="number" class="form-control bg-dark border-white-10 text-white" min="0" step="0.1" value="@FormatNullableDecimal(_filterDeliveryHoursTo)" @oninput="HandleFilterDeliveryHoursToInput" />
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label text-muted small">@T["modals.trade.filter.sellerCountry"]</label>
+                                            <div class="trade-country-filter">
+                                                <button type="button"
+                                                        class="trade-country-filter-trigger"
+                                                        @onclick="ToggleSellerCountryPicker">
+                                                    @if (SelectedSellerCountry is not null)
+                                                    {
+                                                        <CountryNameWithFlag Name="@GetCountryDisplayName(SelectedSellerCountry)"
+                                                                             FlagUrl="@GetCountryFlagUrl(SelectedSellerCountry)"
+                                                                             IsoCode2="@SelectedSellerCountry.IsoCode2"
+                                                                             Size="18" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span>@T["modals.trade.filter.allCountries"]</span>
+                                                    }
+                                                </button>
+
+                                                @if (_isSellerCountryPickerOpen)
+                                                {
+                                                    <div class="trade-country-filter-menu">
+                                                        <button type="button" class="trade-country-filter-option" @onclick="ClearSellerCountryFilter">
+                                                            <span>@T["modals.trade.filter.allCountries"]</span>
+                                                        </button>
+                                                        @foreach (var country in AvailableSellerCountries)
+                                                        {
+                                                            <button type="button" class="trade-country-filter-option" @onclick="() => SelectSellerCountry(country.CountriesId)">
+                                                                <CountryNameWithFlag Name="@GetCountryDisplayName(country)"
+                                                                                     FlagUrl="@GetCountryFlagUrl(country)"
+                                                                                     IsoCode2="@country.IsoCode2"
+                                                                                     Size="18" />
+                                                            </button>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="col-12 d-flex gap-2">
+                                            <button type="button" class="btn btn-primary" @onclick="ApplyFiltersAsync" disabled="@_isLoading">@T["modals.trade.filter.apply"]</button>
+                                            <button type="button" class="btn btn-outline-light" @onclick="ClearFiltersAsync" disabled="@_isLoading">@T["modals.trade.filter.clear"]</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </details>
+                        }
+
+                        @if (!IsNewOfferTab && _isLoading)
+                        {
+                            <div class="trade-empty-state text-center py-5 glass-card"><p class="text-muted">@T["modals.trade.loading"]</p></div>
+                        }
+                        else if (!IsNewOfferTab && _trades.Count == 0)
+                        {
+                            <div class="trade-empty-state text-center py-5 glass-card"><p class="text-muted">@T["modals.trade.empty"]</p></div>
+                        }
+                        else if (!IsNewOfferTab)
+                        {
+                            @if (TotalPages > 1)
+                            {
+                                <div class="trade-pager mb-3">
+                                    <small class="trade-pager-summary">@CurrentPageStartItem-@CurrentPageEndItem / @_totalTradesCount</small>
+                                    <div class="trade-pager-controls" role="group" aria-label="@T["modals.trade.pagination.topAriaLabel"]">
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@(_currentPage <= 1 || _isLoading)">«</button>
+                                        <button type="button" class="trade-pager-btn" @onclick="GoToPreviousPageAsync" disabled="@(_currentPage <= 1 || _isLoading)">‹</button>
+                                        @foreach (var pageNumber in GetVisiblePageNumbers(_currentPage, TotalPages))
+                                        {
+                                            <button type="button"
+                                                    class="trade-pager-btn @(pageNumber == _currentPage ? "active" : null)"
+                                                    @onclick="() => GoToPageAsync(pageNumber)"
+                                                    disabled="@_isLoading">
+                                                @pageNumber
+                                            </button>
+                                        }
+                                        <button type="button" class="trade-pager-btn" @onclick="GoToNextPageAsync" disabled="@(_currentPage >= TotalPages || _isLoading)">›</button>
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@(_currentPage >= TotalPages || _isLoading)">»</button>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="trade-sort-strip mb-3">
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("type"))'>@T["modals.trade.table.type"] @SortIndicator("type")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("product"))'>@T["modals.trade.table.product"] @SortIndicator("product")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("quantity"))'>@T["modals.trade.table.quantity"] @SortIndicator("quantity")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("price"))'>@T["modals.trade.table.price"] @SortIndicator("price")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("seller"))'>@T["modals.trade.table.seller"] @SortIndicator("seller")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("country"))'>@T["modals.trade.table.country"] @SortIndicator("country")</button>
+                                <button type="button" class="trade-sort-chip" @onclick='@(() => ToggleSortAsync("delivery"))'>@T["modals.trade.table.deliveryTime"] @SortIndicator("delivery")</button>
+                            </div>
+
+                            <div class="trade-card-grid">
+                                @foreach (var trade in _trades)
+                                {
+                                    var resourceCode = trade.ResourceCode;
+                                    var sellerCountryId = trade.FromPlayers.CountriesId;
+                                    var tradePolicy = _tradePoliciesByTargetCountry.TryGetValue(sellerCountryId, out var policy)
+                                        ? policy
+                                        : null;
+                                    var isEmbargo = tradePolicy?.IsEmbargo == true;
+                                    var tariffPercent = tradePolicy?.TariffPercent ?? 0m;
+                                    var buyerTariffPaid = GetBuyerTariffPaid(trade, tariffPercent);
+                                    var buyerPricePerUnit = GetBuyerPricePerUnit(trade, tariffPercent);
+                                    var buyerTotalPrice = GetBuyerTotalPrice(trade, tariffPercent);
+                                    <article class="building-card-large inventory-resource-card trade-listing-card">
+                                        <div class="trade-listing-price-panel inventory-resource-meta-card">
+                                            <div class="trade-listing-price-copy">
+                                                <div class="trade-listing-price">@FormatMoney(buyerPricePerUnit)</div>
+                                                <div class="trade-listing-price-caption">@T["modals.trade.pricePerUnit"]</div>
+                                            </div>
+                                            <div class="trade-listing-stat inventory-resource-meta-card">
+                                                <span class="trade-listing-stat-label">@T["modals.trade.table.quantity"]</span>
+                                                <strong>@trade.Quantity.ToString("N0")</strong>
+                                            </div>
+                                        </div>
+
+                                        <div class="trade-listing-stats">
+           
+                                            <div class="trade-listing-stat inventory-resource-meta-card">
+                                                <span class="trade-listing-stat-label">@T["modals.trade.table.seller"]</span>
+                                                <div class="trade-listing-seller-summary">
+                                                    <strong>@(trade.FromPlayers.Name)</strong>
+                                                    <CountryNameWithFlag Name="@GetCountryDisplayName(trade.FromPlayers.Countries)"
+                                                                         FlagUrl="@GetCountryFlagUrl(trade.FromPlayers.Countries)"
+                                                                         IsoCode2="@trade.FromPlayers.Countries?.IsoCode2"
+                                                                         Size="14" />
+                                                </div>
+                                            </div>
+                                            <div class="trade-listing-stat inventory-resource-meta-card">
+                                                <span class="trade-listing-stat-label">@T["modals.trade.table.deliveryTime"]</span>
+                                                <strong>@GetDeliveryTimeLabel(trade)</strong>
+                                            </div>
+  
+                                        </div>
+                                       
+                                        <div class="trade-listing-stat inventory-resource-meta-card">
+                                            <span class="trade-listing-stat-label">@T["tabs.trade.total"]</span>
+                                            <strong class="trade-listing-stat-total">@FormatMoney(buyerTotalPrice)</strong>
+                                            @if (buyerTariffPaid > 0)
+                                            {
+                                                <div class="">
+                                                    <span class="trade-listing-stat-label">@T["modals.trade.policy.tariffAmount"]</span>
+                                                    <strong>@FormatMoney(buyerTariffPaid)</strong>
+                                                </div>
+                                            }
+                                        </div>
+                                       
+                                        @if (isEmbargo || tariffPercent > 0m)
+                                        {
+                                            <div class="trade-listing-policy inventory-resource-meta-card">
+                                                <span class="trade-listing-stat-label">@T["modals.trade.policy.label"]</span>
+                                                @if (isEmbargo)
+                                                {
+                                                    <span class="badge bg-danger">@T["modals.trade.policy.embargo"]</span>
+                                                }
+                                                else if (tariffPercent > 0m)
+                                                {
+                                                    <span class="badge bg-warning text-dark">@string.Format(T["modals.trade.policy.tariff"], tariffPercent.ToString("0.##"))</span>
+                                                }
+                                                else
+                                                {
+                                                    <strong class="text-muted">@T["modals.trade.policy.none"]</strong>
+                                                }
+                                            </div>
+                                        }
+                                        <div class="trade-listing-actions">
+                                            @if (trade.ToPlayersId == null && AppState.MyPlayer?.PlayersId != trade.FromPlayersId)
+                                            {
+                                                <button type="button" class="btn btn-outline-primary trade-listing-action-btn p-3 w-100" disabled="@(_isBuying || isEmbargo)" @onclick="() => BuyTradeAsync(trade)">@T["modals.trade.buy"]</button>
+                                            }
+                                            else
+                                            {
+                                                <span class="trade-listing-archive-meta">@T["modals.trade.yourListing"]</span>
+                                            }
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+
+                            @if (TotalPages > 1)
+                            {
+                                <div class="trade-pager mt-3">
+                                    <small class="trade-pager-summary">@CurrentPageStartItem-@CurrentPageEndItem / @_totalTradesCount</small>
+                                    <div class="trade-pager-controls" role="group" aria-label="@T["modals.trade.pagination.bottomAriaLabel"]">
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(1)" disabled="@(_currentPage <= 1 || _isLoading)">«</button>
+                                        <button type="button" class="trade-pager-btn" @onclick="GoToPreviousPageAsync" disabled="@(_currentPage <= 1 || _isLoading)">‹</button>
+                                        @foreach (var pageNumber in GetVisiblePageNumbers(_currentPage, TotalPages))
+                                        {
+                                            <button type="button"
+                                                    class="trade-pager-btn @(pageNumber == _currentPage ? "active" : null)"
+                                                    @onclick="() => GoToPageAsync(pageNumber)"
+                                                    disabled="@_isLoading">
+                                                @pageNumber
+                                            </button>
+                                        }
+                                        <button type="button" class="trade-pager-btn" @onclick="GoToNextPageAsync" disabled="@(_currentPage >= TotalPages || _isLoading)">›</button>
+                                        <button type="button" class="trade-pager-btn" @onclick="() => GoToPageAsync(TotalPages)" disabled="@(_currentPage >= TotalPages || _isLoading)">»</button>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PlayerTrade> _trades = [];
+    private ElementReference _offerSummaryAnchor;
+    private ResourceUnitsEnum? _selectedResourceCode;
+    private int _newQuantity = 1;
+    private decimal _newPrice = 1;
+    private bool _isLoading;
+    private bool _isBuying;
+    private bool _isSubmittingOffer;
+    private string? _errorMessage;
+    private string _sortColumn = "created";
+    private bool _sortAscending;
+    private int _currentPage = 1;
+    private const int PageSize = 25;
+    private static readonly TimeSpan AutoRefreshInterval = TimeSpan.FromSeconds(5);
+    private DateTime _lastAutoRefreshUtc = DateTime.MinValue;
+    private int _totalTradesCount;
+    private readonly Dictionary<Guid, CountryTradePolicy> _tradePoliciesByTargetCountry = [];
+    private List<Country> _availableSellerCountries = [];
+    private decimal _buyerTransportSpeedMultiplier = 1m;
+    private decimal? _filterPriceFrom;
+    private decimal? _filterPriceTo;
+    private decimal? _filterDeliveryHoursFrom;
+    private decimal? _filterDeliveryHoursTo;
+    private Guid? _filterSellerCountryId;
+    private bool _isSellerCountryPickerOpen;
+    private bool _scrollToOfferSummaryPending;
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling((double)_totalTradesCount / PageSize));
+    private int CurrentPageStartItem => _totalTradesCount == 0 ? 0 : ((_currentPage - 1) * PageSize) + 1;
+    private int CurrentPageEndItem => _totalTradesCount == 0 ? 0 : Math.Min(((_currentPage - 1) * PageSize) + _trades.Count, _totalTradesCount);
+    private bool CanSubmitOffer => _selectedResourceCode.HasValue && _newQuantity > 0 && _newPrice > 0;
+    private bool CanShowOfferSummary => _selectedResourceCode.HasValue;
+    private IReadOnlyList<Country> AvailableSellerCountries => _availableSellerCountries;
+    private Country? SelectedSellerCountry => _filterSellerCountryId.HasValue
+        ? _availableSellerCountries.FirstOrDefault(country => country.CountriesId == _filterSellerCountryId.Value)
+        : null;
+    private IReadOnlyList<TradeOfferResourceOption> TradeOfferResources =>
+    [
+        new(ResourceUnitsEnum.Oil, T["modals.trade.resource.oil"], "/assets/icons/resources/oil.png"),
+        new(ResourceUnitsEnum.Uranium, T["modals.trade.resource.uranium"], "/assets/icons/resources/uranium.png"),
+        new(ResourceUnitsEnum.Chips, T["modals.trade.resource.chips"], "/assets/icons/resources/chips.png")
+    ];
+    private TradeOfferSubTab _activeTradeSubTab = TradeOfferSubTab.Oil;
+    private IReadOnlyList<TradeSubTabOption> TradeSubTabs =>
+    [
+        new(TradeOfferSubTab.Oil, T["modals.trade.resource.oil"], "/assets/icons/resources/oil.png"),
+        new(TradeOfferSubTab.Uranium, T["modals.trade.resource.uranium"], "/assets/icons/resources/uranium.png"),
+        new(TradeOfferSubTab.Chips, T["modals.trade.resource.chips"], "/assets/icons/resources/chips.png"),
+        new(TradeOfferSubTab.NewOffer, T["modals.trade.newOffer"], "/assets/icons/resources/money.png")
+    ];
+    private bool IsNewOfferTab => _activeTradeSubTab == TradeOfferSubTab.NewOffer;
+    private string? ActiveListingResourceCode => _activeTradeSubTab switch
+    {
+        TradeOfferSubTab.Oil => nameof(ResourceUnitsEnum.Oil),
+        TradeOfferSubTab.Uranium => nameof(ResourceUnitsEnum.Uranium),
+        TradeOfferSubTab.Chips => nameof(ResourceUnitsEnum.Chips),
+        _ => null
+    };
+
+    private decimal GetOwnedResourceAmount(ResourceUnitsEnum resourceCode)
+    {
+        return resourceCode switch
+        {
+            ResourceUnitsEnum.Oil => AppState.MyPlayer.Oil,
+            ResourceUnitsEnum.Uranium => AppState.MyPlayer.Uranium,
+            ResourceUnitsEnum.Chips => AppState.MyPlayer.Chips,
+            _ => 0m
+        };
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AppState.ActiveModal != ModalTypesEnum.Trades)
+        {
+            return;
+        }
+
+        await LoadTradesAsync(resetPage: true);
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        if (AppState.ActiveModal == ModalTypesEnum.Trades && !_isLoading && !_isBuying)
+        {
+            var nowUtc = DateTime.UtcNow;
+            if (nowUtc - _lastAutoRefreshUtc < AutoRefreshInterval)
+            {
+                return;
+            }
+
+            _lastAutoRefreshUtc = nowUtc;
+            await LoadTradesAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollToOfferSummaryPending && _selectedResourceCode.HasValue)
+        {
+            _scrollToOfferSummaryPending = false;
+            var module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/dom-utils.js");
+            await module.InvokeVoidAsync("scrollElementIntoView", _offerSummaryAnchor);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task LoadTradesAsync(bool resetPage = false)
+    {
+        _isLoading = true;
+        _errorMessage = null;
+        try
+        {
+            _buyerTransportSpeedMultiplier = AppState.MyPlayer?.PlayersId is Guid buyerPlayerId && buyerPlayerId != Guid.Empty
+                ? await PremiumService.GetTransportSpeedMultiplierAsync(buyerPlayerId)
+                : 1m;
+
+            if (resetPage)
+            {
+                _currentPage = 1;
+            }
+
+            var listingsPage = await PlayerTradeService.GetTradeListingsPagedAsync(
+                    AppState.MyPlayer.PlayersId,
+                    _currentPage,
+                    PageSize,
+                    _sortColumn,
+                    _sortAscending,
+                    ActiveListingResourceCode,
+                    _filterSellerCountryId,
+                    _filterPriceFrom,
+                    _filterPriceTo,
+                    _filterDeliveryHoursFrom,
+                    _filterDeliveryHoursTo);
+
+            _trades = listingsPage.Items.ToList();
+            _totalTradesCount = listingsPage.TotalCount;
+            _currentPage = Math.Clamp(_currentPage, 1, TotalPages);
+            _availableSellerCountries = await PlayerTradeService.GetTradeListingCountriesAsync(AppState.MyPlayer.PlayersId, ActiveListingResourceCode);
+            var outgoingPolicies = await PlayerTradeService.GetOutgoingTradePoliciesForPlayerCountryAsync(AppState.MyPlayer.PlayersId);
+            _tradePoliciesByTargetCountry.Clear();
+            foreach (var policy in outgoingPolicies)
+            {
+                _tradePoliciesByTargetCountry[policy.TargetCountriesId] = policy;
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["modals.trade.error.loadLogPrefix"]);
+            _errorMessage = T["modals.trade.error.loadFailed"];
+            _trades = [];
+            _totalTradesCount = 0;
+            _availableSellerCountries = [];
+            _tradePoliciesByTargetCountry.Clear();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task BuyTradeAsync(PlayerTrade trade)
+    {
+        if (_isBuying)
+        {
+            return;
+        }
+
+        _isBuying = true;
+        _errorMessage = null;
+        try
+        {
+            await PlayerTradeService.BuyTradeAsync(trade.PlayerTradesId, AppState.MyPlayer.PlayersId);
+            var refreshedPlayer = await PlayersService.GetPlayerForTab(AppState.MyPlayer.PlayersId, PlayerOverviewTabEnum.Overview);
+            if (refreshedPlayer != null)
+            {
+                AppState.SetMyPlayer(refreshedPlayer);
+            }
+
+            _lastAutoRefreshUtc = DateTime.UtcNow;
+            await LoadTradesAsync(resetPage: true);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["modals.trade.error.buyLogPrefix"]);
+            _errorMessage = T["modals.trade.error.buyFailed"];
+        }
+        finally
+        {
+            _isBuying = false;
+        }
+    }
+
+    private async Task CreateOfferAsync()
+    {
+        if (_isSubmittingOffer || !_selectedResourceCode.HasValue)
+        {
+            return;
+        }
+
+        _isSubmittingOffer = true;
+        _errorMessage = null;
+        try
+        {
+            await PlayerTradeService.CreateResourceTradeAsync(AppState.MyPlayer.PlayersId, _selectedResourceCode.Value, _newQuantity, _newPrice);
+            ResetNewOfferForm();
+            await LoadTradesAsync(resetPage: true);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["modals.trade.error.createLogPrefix"]);
+            _errorMessage = T["modals.trade.error.createFailed"];
+        }
+        finally
+        {
+            _isSubmittingOffer = false;
+        }
+    }
+
+    private async Task SelectTradeSubTabAsync(TradeOfferSubTab subTab)
+    {
+        _activeTradeSubTab = subTab;
+        _errorMessage = null;
+        _currentPage = 1;
+        _filterPriceFrom = null;
+        _filterPriceTo = null;
+        _filterDeliveryHoursFrom = null;
+        _filterDeliveryHoursTo = null;
+        _filterSellerCountryId = null;
+        _isSellerCountryPickerOpen = false;
+
+        if (subTab == TradeOfferSubTab.NewOffer)
+        {
+            ResetNewOfferForm();
+            return;
+        }
+
+        await LoadTradesAsync(resetPage: true);
+    }
+
+    private void SelectResource(ResourceUnitsEnum resourceCode)
+    {
+        _selectedResourceCode = resourceCode;
+        _scrollToOfferSummaryPending = true;
+    }
+
+    private Task HandleNewOfferQuantityInput(ChangeEventArgs args)
+    {
+        var ownedQuantity = _selectedResourceCode.HasValue
+            ? (int)Math.Max(0m, Math.Floor(GetOwnedResourceAmount(_selectedResourceCode.Value)))
+            : int.MaxValue;
+        var parsedQuantity = int.TryParse(args.Value?.ToString(), out var quantity) ? quantity : 0;
+        _newQuantity = Math.Clamp(parsedQuantity, 0, Math.Max(0, ownedQuantity));
+        return Task.CompletedTask;
+    }
+
+    private Task HandleNewOfferPriceInput(ChangeEventArgs args)
+    {
+        var parsedPrice = decimal.TryParse(args.Value?.ToString(), out var price) ? price : 0m;
+        _newPrice = Math.Max(0m, parsedPrice);
+        return Task.CompletedTask;
+    }
+
+    private async Task CancelNewOfferAsync()
+    {
+        ResetNewOfferForm();
+        await SelectTradeSubTabAsync(TradeOfferSubTab.Oil);
+    }
+
+    private async Task ToggleSortAsync(string column)
+    {
+        if (_sortColumn.Equals(column, StringComparison.OrdinalIgnoreCase))
+        {
+            _sortAscending = !_sortAscending;
+        }
+        else
+        {
+            _sortColumn = column;
+            _sortAscending = true;
+        }
+
+        _currentPage = 1;
+        await LoadTradesAsync();
+    }
+
+    private string SortIndicator(string column)
+    {
+        if (!_sortColumn.Equals(column, StringComparison.OrdinalIgnoreCase))
+        {
+            return "⇅";
+        }
+
+        return _sortAscending ? "▲" : "▼";
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _currentPage = 1;
+        await LoadTradesAsync();
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        _filterPriceFrom = null;
+        _filterPriceTo = null;
+        _filterDeliveryHoursFrom = null;
+        _filterDeliveryHoursTo = null;
+        _filterSellerCountryId = null;
+        _isSellerCountryPickerOpen = false;
+        _currentPage = 1;
+        await LoadTradesAsync();
+    }
+
+    private Task ToggleSellerCountryPicker()
+    {
+        _isSellerCountryPickerOpen = !_isSellerCountryPickerOpen;
+        return Task.CompletedTask;
+    }
+
+    private Task SelectSellerCountry(Guid countryId)
+    {
+        _filterSellerCountryId = countryId;
+        _isSellerCountryPickerOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private Task ClearSellerCountryFilter()
+    {
+        _filterSellerCountryId = null;
+        _isSellerCountryPickerOpen = false;
+        return Task.CompletedTask;
+    }
+
+    private async Task GoToPageAsync(int page)
+    {
+        var targetPage = Math.Clamp(page, 1, TotalPages);
+        if (targetPage == _currentPage)
+        {
+            return;
+        }
+
+        _currentPage = targetPage;
+        await LoadTradesAsync();
+    }
+
+    private Task GoToPreviousPageAsync() => GoToPageAsync(_currentPage - 1);
+    private Task GoToNextPageAsync() => GoToPageAsync(_currentPage + 1);
+
+    private static List<int> GetVisiblePageNumbers(int currentPage, int totalPages)
+    {
+        if (totalPages <= 0)
+        {
+            return [];
+        }
+
+        const int radius = 2;
+        var start = Math.Max(1, currentPage - radius);
+        var end = Math.Min(totalPages, currentPage + radius);
+        var result = new List<int>();
+
+        for (var page = start; page <= end; page++)
+        {
+            result.Add(page);
+        }
+
+        return result;
+    }
+
+    private Task HandleFilterPriceFromInput(ChangeEventArgs args)
+    {
+        _filterPriceFrom = ParseNullableDecimal(args.Value?.ToString());
+        return Task.CompletedTask;
+    }
+
+    private Task HandleFilterPriceToInput(ChangeEventArgs args)
+    {
+        _filterPriceTo = ParseNullableDecimal(args.Value?.ToString());
+        return Task.CompletedTask;
+    }
+
+    private Task HandleFilterDeliveryHoursFromInput(ChangeEventArgs args)
+    {
+        _filterDeliveryHoursFrom = ParseNullableDecimal(args.Value?.ToString());
+        return Task.CompletedTask;
+    }
+
+    private Task HandleFilterDeliveryHoursToInput(ChangeEventArgs args)
+    {
+        _filterDeliveryHoursTo = ParseNullableDecimal(args.Value?.ToString());
+        return Task.CompletedTask;
+    }
+
+    private static string FormatNullableDecimal(decimal? value) => value?.ToString() ?? string.Empty;
+
+    private static decimal? ParseNullableDecimal(string? rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+        {
+            return null;
+        }
+
+        return decimal.TryParse(rawValue, out var parsedValue) ? Math.Max(0m, parsedValue) : null;
+    }
+
+    private decimal TransportSpeedKmh => Math.Max(1m, Configuration.GetValue<decimal?>("MovementSpeeds:TransportKmh") ?? 60m);
+
+    private string GetDeliveryTimeLabel(PlayerTrade trade)
+    {
+        var buyer = AppState.MyPlayer;
+        var seller = trade.FromPlayers;
+        var distanceKm = CalculateDistanceKm(seller.LocationY, seller.LocationX, buyer.LocationY, buyer.LocationX);
+        var travelTimeSeconds = Math.Max(60, (int)Math.Round((double)(distanceKm / Math.Max(1m, TransportSpeedKmh * _buyerTransportSpeedMultiplier) * 3600m)));
+        return FormatDurationLabel(travelTimeSeconds);
+    }
+
+    private static decimal CalculateDistanceKm(decimal fromLat, decimal fromLng, decimal toLat, decimal toLng)
+    {
+        const decimal earthRadiusKm = 6371m;
+        var dLat = ToRadians(toLat - fromLat);
+        var dLon = ToRadians(toLng - fromLng);
+        var lat1 = ToRadians(fromLat);
+        var lat2 = ToRadians(toLat);
+
+        var sinDlat = Math.Sin((double)dLat / 2d);
+        var sinDlon = Math.Sin((double)dLon / 2d);
+        var a = sinDlat * sinDlat + Math.Cos((double)lat1) * Math.Cos((double)lat2) * sinDlon * sinDlon;
+        var c = 2d * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1d - a));
+        return earthRadiusKm * (decimal)c;
+    }
+
+    private static decimal ToRadians(decimal degrees) => degrees * ((decimal)Math.PI / 180m);
+
+    private string FormatDurationLabel(int totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(60, totalSeconds));
+        if (duration.TotalHours >= 24)
+        {
+            return string.Format(T["modals.trade.duration.daysHoursMinutes"], (int)duration.TotalDays, duration.Hours, duration.Minutes);
+        }
+
+        if (duration.TotalHours >= 1)
+        {
+            return string.Format(T["modals.trade.duration.hoursMinutes"], (int)duration.TotalHours, duration.Minutes);
+        }
+
+        return string.Format(T["modals.trade.duration.minutes"], Math.Max(1, duration.Minutes));
+    }
+
+    private void CloseModal() => AppState.CloseModal();
+
+    private decimal GetOfferTotalPrice() => _newQuantity * _newPrice;
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+    private static string FormatEditablePrice(decimal value) => value.ToString("0.##");
+    private static decimal CalculateTradeTariffPaid(decimal totalPrice, decimal tariffPercent)
+        => Math.Max(0m, Math.Round(totalPrice * (Math.Max(0m, tariffPercent) / 100m), 2, MidpointRounding.AwayFromZero));
+    private static decimal GetBuyerTariffPaid(PlayerTrade trade, decimal tariffPercent)
+        => CalculateTradeTariffPaid(trade.TotalPrice, tariffPercent);
+    private static decimal GetBuyerTotalPrice(PlayerTrade trade, decimal tariffPercent)
+        => trade.TotalPrice + GetBuyerTariffPaid(trade, tariffPercent);
+    private static decimal GetBuyerPricePerUnit(PlayerTrade trade, decimal tariffPercent)
+        => trade.Quantity <= 0m
+            ? trade.PricePerUnit
+            : Math.Round(GetBuyerTotalPrice(trade, tariffPercent) / trade.Quantity, 2, MidpointRounding.AwayFromZero);
+
+    private string GetSelectedResourceLabel() =>
+        TradeOfferResources.FirstOrDefault(r => r.Code == _selectedResourceCode)?.Label ?? string.Empty;
+
+    private string GetSelectedResourceIconPath() =>
+        TradeOfferResources.FirstOrDefault(r => r.Code == _selectedResourceCode)?.IconPath ?? string.Empty;
+
+    private string GetResourceIconPath(string? resourceCode)
+    {
+        if (string.IsNullOrWhiteSpace(resourceCode))
+        {
+            return "/assets/icons/resources/money.png";
+        }
+
+        return TradeOfferResources.FirstOrDefault(r =>
+                   string.Equals(r.Code.ToString(), resourceCode, StringComparison.OrdinalIgnoreCase))
+               ?.IconPath
+           ?? "/assets/icons/resources/money.png";
+    }
+
+    private string GetCountryDisplayName(Country? country)
+    {
+        if (country == null)
+        {
+            return string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(country.IsoCode2))
+        {
+            var localized = T[$"countries.name.{country.IsoCode2.ToUpperInvariant()}"];
+            if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, $"countries.name.{country.IsoCode2.ToUpperInvariant()}", StringComparison.Ordinal))
+            {
+                return localized;
+            }
+        }
+
+        return country.Name ?? string.Empty;
+    }
+
+    private static string? GetCountryFlagUrl(Country? country)
+    {
+        if (country == null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(country.Flag))
+        {
+            return country.Flag;
+        }
+
+        return string.IsNullOrWhiteSpace(country.IsoCode2)
+            ? null
+            : $"/assets/flags/{country.IsoCode2.ToLowerInvariant()}.svg";
+    }
+
+    private void ResetNewOfferForm()
+    {
+        _selectedResourceCode = null;
+        _newQuantity = 1;
+        _newPrice = 1;
+    }
+
+    private sealed record TradeOfferResourceOption(ResourceUnitsEnum Code, string Label, string IconPath);
+    private sealed record TradeSubTabOption(TradeOfferSubTab Tab, string Label, string IconPath);
+    private enum TradeOfferSubTab
+    {
+        Oil,
+        Uranium,
+        Chips,
+        NewOffer
+    }
+}

@@ -1,0 +1,169 @@
+@inject AuthService AuthService
+@using VoltrokServices.Services.Auth
+@using VoltrokUtils.Enums
+
+@inherits AppStateComponentBase
+
+<div class="sidebar-buttons d-flex @(Inline ? "sidebar-buttons-inline align-items-center flex-wrap" : "flex-column gap-2")"
+     @onclick:stopPropagation="true">
+
+
+    <div class="sidebar-button-shell">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn @(AppState.ActiveModal == ModalTypesEnum.Player ? "active-btn" : "") @(AppState.IsOnboardingTarget("sidebar-player") ? "onboarding-highlight" : "")"
+                @onclick="HandleMyKingdom"
+                disabled="@(!IsLoggedIn)"
+                aria-label="@T["parts.sidebar.overview"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:home-variant" width="48"></iconify-icon>
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["parts.sidebar.overview"]</span>
+    </div>
+    
+    <div class="sidebar-button-shell">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn @(AppState.ActiveModal == ModalTypesEnum.Country ? "active-btn" : "") @(AppState.IsOnboardingTarget("sidebar-country") ? "onboarding-highlight" : "")"
+                @onclick="HandleCountryManagement" disabled="@(!HasCountryAccess)"
+                aria-label="@T["modals.player.tab.country"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:flag-variant" width="48"></iconify-icon>
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["modals.player.tab.country"]</span>
+    </div>
+
+    <!-- Trades -->
+    <div class="sidebar-button-shell">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn @(AppState.ActiveModal == ModalTypesEnum.Trades ? "active-btn" : "") @(AppState.IsOnboardingTarget("sidebar-trade") ? "onboarding-highlight" : "")"
+                @onclick="() => HandleSidebarToggle(ModalTypesEnum.Trades)"
+                disabled="@(!IsLoggedIn)"
+                aria-label="@T["parts.sidebar.trades"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:swap-horizontal-bold" width="48"></iconify-icon>
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["parts.sidebar.trades"]</span>
+    </div>
+
+    <!-- Ranking -->
+    <div class="sidebar-button-shell">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn @(AppState.ActiveModal == ModalTypesEnum.Ranking ? "active-btn" : "") @(AppState.IsOnboardingTarget("sidebar-ranking") ? "onboarding-highlight" : "")"
+                @onclick="() => HandleSidebarToggle(ModalTypesEnum.Ranking)"
+                aria-label="@T["parts.sidebar.ranking"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:trophy-outline" width="48"></iconify-icon>
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["parts.sidebar.ranking"]</span>
+    </div>
+
+    <!-- Chat -->
+    <div class="sidebar-button-shell">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn chat-btn @(AppState.IsOnboardingTarget("sidebar-chat") ? "onboarding-highlight" : "")"
+                @onclick="HandleToggleChat"
+                disabled="@(!IsLoggedIn)"
+                aria-label="@T["parts.sidebar.chat"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:chat-processing-outline" width="48"></iconify-icon>
+            @if (AppState.ChatUnreadCount > 0)
+            {
+                <span class="chat-unread-badge">@GetUnreadBadgeLabel()</span>
+            }
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["parts.sidebar.chat"]</span>
+    </div>
+
+    <div class="sidebar-button-shell @(Inline ? "sidebar-button-shell-info" : "")">
+        <button class="btn btn-secondary d-flex align-items-center justify-content-center topbar-icon-btn sidebar-button-btn"
+                @onclick="HandleInfo"
+                aria-label="@T["parts.sidebar.info"]">
+            <iconify-icon class="sidebar-button-icon" icon="mdi:information-outline" width="48"></iconify-icon>
+        </button>
+        <span class="sidebar-button-tooltip" role="tooltip">@T["parts.sidebar.info"]</span>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool Inline { get; set; }
+    private bool IsLoggedIn => AppState.MyPlayer.PlayersId != Guid.Empty;
+    private bool HasCountryAccess => AppState.MyPlayer?.Countries != null;
+    private bool CanManageCountry => AppState.MyPlayer?.Countries?.PresidentPlayersId == AppState.MyPlayer?.PlayersId;
+
+    private async Task HandleSidebarToggle(ModalTypesEnum typesEnum)
+    {
+        if (await EnsureLoggedIn())
+        {
+            if (typesEnum == ModalTypesEnum.Trades)
+            {
+                AppState.MarkOnboardingTargetClicked("sidebar-trade");
+            }
+
+            AppState?.OpenModal(typesEnum);
+        }
+    }
+
+    private async Task HandleCountryManagement()
+    {
+        if (!await EnsureLoggedIn())
+        {
+            return;
+        }
+
+        if (AppState.MyPlayer?.Countries == null)
+        {
+            return;
+        }
+
+        AppState.MarkOnboardingTargetClicked("sidebar-country");
+        AppState.ClearCountryInfo();
+        AppState.SetCountryIsoCode2(AppState.MyPlayer.Countries.IsoCode2 ?? AppState.MyPlayer.Countries.Name);
+        AppState.OpenModal(ModalTypesEnum.Country);
+    }
+
+    private async Task HandleMyKingdom()
+    {
+        if (!await EnsureLoggedIn())
+        {
+            return;
+        }
+
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        AppState.MarkOnboardingTargetClicked("sidebar-player");
+        AppState.SetPlayerInfo(AppState.MyPlayer.PlayersId);
+        AppState.OpenModal(ModalTypesEnum.Player);
+    }
+
+    private async Task HandleToggleChat()
+    {
+        if (await EnsureLoggedIn())
+        {
+            if (AppState.IsChatOpen)
+            {
+                AppState.CloseChat();
+            }
+            else
+            {
+                AppState.OpenChat(ChatChannel.General);
+            }
+        }
+    }
+
+    private void HandleInfo()
+    {
+        AppState.RequestOnboardingOpen();
+    }
+
+    private async Task<bool> EnsureLoggedIn()
+    {
+        var token = await AuthService.GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
+        {
+            AppState.OpenModal(ModalTypesEnum.Login);
+            return false;
+        }
+
+        return true;
+    }
+
+    private string GetUnreadBadgeLabel()
+    {
+        return AppState.ChatUnreadCount > 99
+            ? "99+"
+            : AppState.ChatUnreadCount.ToString();
+    }
+
+}

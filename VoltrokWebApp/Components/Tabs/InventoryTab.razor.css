@@ -1,0 +1,58 @@
+.inventory-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+}
+
+.inventory-resource-card {
+    justify-content: space-between;
+    min-height: 200px !important;
+}
+
+.inventory-resource-card-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.inventory-resource-icon-wrap {
+    width: 96px;
+    height: 96px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--medieval-panel-strong);
+    border: 1px solid var(--medieval-border);
+    box-shadow: var(--medieval-shadow);
+}
+
+.inventory-resource-icon {
+    object-fit: contain;
+}
+
+.inventory-resource-kicker {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--medieval-muted);
+    text-align: right;
+}
+
+.inventory-resource-title {
+    margin-top: 1rem;
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--medieval-text);
+    text-align: right;
+}
+
+.inventory-resource-value {
+    margin-top: 0.5rem;
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.05;
+    color: var(--medieval-gold);
+    word-break: break-word;
+    text-align: right;
+}

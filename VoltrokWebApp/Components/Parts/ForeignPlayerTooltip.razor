@@ -1,0 +1,448 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Countries
+@using VoltrokServices.Services.Military
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject PlayersService PlayersService
+@inject PlayerMilitaryTransportService MilitaryTransportService
+@inject CountryGovernanceService CountryGovernanceService
+
+@inherits VoltrokWebApp.Components.AppStateComponentBase
+
+@if (IsVisible)
+{
+    <div class="foreign-player-tooltip">
+        @if (_stats == null)
+        {
+            <div class="foreign-player-tooltip-card">
+                <div class="foreign-player-tooltip-loading">@T["tabs.military.loading"]</div>
+            </div>
+        }
+        else
+        {
+            <div class="foreign-player-tooltip-card">
+                <button type="button" class="foreign-player-tooltip-close" @onclick="CloseTooltip" aria-label="@T["layout.main.dismiss"]">
+                    <iconify-icon icon="solar:close-circle-bold"></iconify-icon>
+                </button>
+
+                <div class="foreign-player-tooltip-head">
+                    <div class="foreign-player-tooltip-avatar-wrap">
+                        @if (!string.IsNullOrWhiteSpace(_stats.PlayerAvatar))
+                        {
+                            <img class="foreign-player-tooltip-avatar" src="@_stats.PlayerAvatar" alt="@_stats.PlayerName" />
+                        }
+                        else
+                        {
+                            <iconify-icon icon="carbon:user-avatar" width="44" height="44"></iconify-icon>
+                        }
+                    </div>
+                    <div class="foreign-player-tooltip-head-text">
+                        <div class="foreign-player-tooltip-name">@_stats.PlayerName</div>
+                        <div class="foreign-player-tooltip-subtitle">
+                            <CountryNameWithFlag Name="@_stats.CountryName"
+                                                 FlagUrl="@_stats.CountryFlag"
+                                                 IsoCode2="@_stats.CountryIsoCode2"
+                                                 Size="16"
+                                                 Class="foreign-player-tooltip-country" />
+                            @if (_stats.IsNpc)
+                            {
+                                <span class="foreign-player-tooltip-badge">@T["modals.player.npcBadge"]</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                @if (!IsMilitaryActionsReady)
+                {
+                    <div class="foreign-player-tooltip-actions-loading">
+                        <iconify-icon icon="line-md:loading-twotone-loop" width="18" height="18"></iconify-icon>
+                        <span>@T["tabs.military.loading"]</span>
+                    </div>
+                }
+                else
+                {
+                    <div class="foreign-player-tooltip-actions">
+                        <button type="button" class="btn btn-outline-danger" @onclick='() => OpenMilitaryAsync(PlayerMilitaryTransportMissionType.Attack.ToDbValue())' disabled="@DisableAttackAction">
+                            @T["parts.foreignPlayerTooltip.action.attack"]
+                        </button>
+                        <button type="button" class="btn btn-outline-warning" @onclick='() => OpenMilitaryAsync(PlayerMilitaryTransportMissionType.Siege.ToDbValue())' disabled="@DisableSiegeAction">
+                            @T["parts.foreignPlayerTooltip.action.siege"]
+                        </button>
+                        <button type="button" class="btn btn-outline-success" @onclick='() => OpenMilitaryAsync(PlayerMilitaryTransportMissionType.Aid.ToDbValue())' disabled="@DisableHelpAction">
+                            @T["parts.foreignPlayerTooltip.action.help"]
+                        </button>
+                        <button type="button" class="btn btn-outline-light" @onclick="OpenChat">
+                            @T["parts.foreignPlayerTooltip.action.chat"]
+                        </button>
+                    </div>
+                }
+
+                @if (ShowDeclareWarHint)
+                {
+                    <div class="foreign-player-tooltip-war-hint">
+                        @GetMilitaryRequirementHint()
+                    </div>
+                }
+
+                @if (_activeMission is not null)
+                {
+                    <div class="foreign-player-tooltip-section">
+                        <div class="foreign-player-tooltip-section-title">@T["parts.foreignPlayerTooltip.operation.title"]</div>
+                        <div class="foreign-player-tooltip-operation-row">
+                            <span>@GetMissionLabel(_activeMission)</span>
+                            <strong>@GetMissionStatusLabel(_activeMission)</strong>
+                        </div>
+                        <div class="foreign-player-tooltip-operation-meta">
+                            @GetMissionActionHint(_activeMission)
+                        </div>
+                        <div class="foreign-player-tooltip-actions foreign-player-tooltip-actions-compact">
+                            <button type="button"
+                                    class="@GetMissionActionButtonClass(_activeMission)"
+                                    @onclick="HandleMissionActionAsync"
+                                    disabled="@_isChangingMission">
+                                @(_isChangingMission ? "..." : GetMissionActionLabel(_activeMission))
+                            </button>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(_missionFeedback))
+                        {
+                            <div class="foreign-player-tooltip-operation-feedback">@_missionFeedback</div>
+                        }
+                    </div>
+                }
+
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private PlayerMapTooltipStats? _stats;
+    private PlayerMilitaryTransport? _activeMission;
+    private Guid? _loadedPlayerId;
+    private bool _isChangingMission;
+    private bool _isResolvingMilitaryActions;
+    private bool _isWarActiveWithTarget;
+    private bool _allowToAttackInsideCountry;
+    private bool _allowToAttackWithoutWarDeclaration;
+    private bool _targetHasForeignActiveSiege;
+    private string? _missionFeedback;
+
+    private bool IsVisible =>
+        AppState.MyPlayer != null
+        && AppState.ClickedLastPlayer != Guid.Empty
+        && AppState.ClickedLastPlayer != AppState.MyPlayer.PlayersId
+        && AppState.ActiveModal == ModalTypesEnum.None
+        && !IsShieldActive(AppState.MyPlayer?.ShieldValidTill);
+
+    private bool IsMilitaryActionsReady =>
+        _stats is not null
+        && AppState.MyPlayer is not null
+        && !_isResolvingMilitaryActions;
+
+    private bool DisableAggressionActions => false;
+
+    private bool DisableMilitaryActions =>
+        DisableAggressionActions || !CanUseMilitaryActions;
+
+    private bool IsSameCountryTarget =>
+        AppState.MyPlayer is not null
+        && _stats is not null
+        && AppState.MyPlayer.CountriesId == _stats.CountryId;
+
+    private bool CanUseMilitaryActions =>
+        _stats is not null
+        && AppState.MyPlayer is not null
+        && (IsSameCountryTarget
+            ? _allowToAttackInsideCountry
+            : _allowToAttackWithoutWarDeclaration || _isWarActiveWithTarget);
+
+    private bool DisableAttackAction =>
+        DisableMilitaryActions || _targetHasForeignActiveSiege || IsSiegeMissionAlreadyActive(_activeMission);
+
+    private bool DisableSiegeAction =>
+        DisableMilitaryActions || _targetHasForeignActiveSiege || IsSiegeMissionAlreadyActive(_activeMission);
+
+    private bool DisableHelpAction =>
+        DisableMilitaryActions || IsSiegeMissionAlreadyActive(_activeMission);
+
+    private bool ShowSameCountryBlockedHint =>
+        IsMilitaryActionsReady
+        && IsSameCountryTarget
+        && !_allowToAttackInsideCountry;
+
+    private bool ShowWarDeclarationRequiredHint =>
+        IsMilitaryActionsReady
+        && !IsSameCountryTarget
+        && !_allowToAttackWithoutWarDeclaration
+        && !_isWarActiveWithTarget;
+
+    private bool ShowDeclareWarHint =>
+        IsVisible
+        && _stats is not null
+        && !DisableAggressionActions
+        && (ShowSameCountryBlockedHint || ShowWarDeclarationRequiredHint);
+
+    private static bool IsShieldActive(DateTime? validTillUtc)
+        => validTillUtc.HasValue && validTillUtc.Value > DateTime.UtcNow;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnsureTooltipDataAsync();
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsureTooltipDataAsync();
+        await base.OnAppStateChangedAsync();
+    }
+
+    private async Task EnsureTooltipDataAsync()
+    {
+        if (!IsVisible)
+        {
+            _stats = null;
+            _activeMission = null;
+            _loadedPlayerId = null;
+            _missionFeedback = null;
+            _isChangingMission = false;
+            _isResolvingMilitaryActions = false;
+            _isWarActiveWithTarget = false;
+            _allowToAttackInsideCountry = false;
+            _allowToAttackWithoutWarDeclaration = false;
+            _targetHasForeignActiveSiege = false;
+            return;
+        }
+
+        var playerId = AppState.ClickedLastPlayer;
+        _loadedPlayerId = playerId;
+        _missionFeedback = null;
+        _isResolvingMilitaryActions = true;
+
+        try
+        {
+            var cachedStatsAreComplete = false;
+            if (AppState.TryGetPlayerTooltipStats(playerId, out var cachedStats) && cachedStats != null)
+            {
+                _stats = cachedStats;
+                cachedStatsAreComplete = HasCountryIdentity(cachedStats);
+                await InvokeAsync(StateHasChanged);
+            }
+
+            var statsTask = _stats == null || !cachedStatsAreComplete
+                ? PlayersService.GetPlayerMapTooltipStatsAsync(playerId)
+                : Task.FromResult<PlayerMapTooltipStats?>(null);
+
+            var missionTask = AppState.MyPlayer is null
+                ? Task.FromResult<PlayerMilitaryTransport?>(null)
+                : MilitaryTransportService.GetLatestOutgoingMissionAsync(AppState.MyPlayer.PlayersId, playerId);
+
+            await Task.WhenAll(statsTask, missionTask);
+
+            if (_loadedPlayerId != playerId || !IsVisible)
+            {
+                return;
+            }
+
+            if (statsTask.Result != null)
+            {
+                _stats = statsTask.Result;
+            }
+
+            _activeMission = missionTask.Result;
+            if (AppState.MyPlayer is not null)
+            {
+                var combatPolicy = await CountryGovernanceService.GetCountryCombatPolicyAsync(AppState.MyPlayer.CountriesId);
+                _allowToAttackInsideCountry = combatPolicy.AllowToAttackInsideCountry;
+                _allowToAttackWithoutWarDeclaration = combatPolicy.AllowToAttackWithoutWarDeclaration;
+                _targetHasForeignActiveSiege = await MilitaryTransportService.HasBlockingActiveSiegeAsync(playerId, AppState.MyPlayer.PlayersId);
+            }
+
+            _isWarActiveWithTarget = await ResolveWarStatusAsync(_stats);
+        }
+        finally
+        {
+            if (_loadedPlayerId == playerId || !IsVisible)
+            {
+                _isResolvingMilitaryActions = false;
+            }
+
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool HasCountryIdentity(PlayerMapTooltipStats stats)
+        => !string.IsNullOrWhiteSpace(stats.CountryFlag)
+           || !string.IsNullOrWhiteSpace(stats.CountryIsoCode2);
+
+    private static bool IsSiegeMissionAlreadyActive(PlayerMilitaryTransport? transport)
+        => transport is not null
+           && string.Equals(transport.MissionType?.Trim(), PlayerMilitaryTransportMissionType.Siege.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+           && (string.Equals(transport.Status?.Trim(), PlayerTransportStatus.InProgress.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+               || string.Equals(transport.Status?.Trim(), PlayerTransportStatus.InSiege.ToDbValue(), StringComparison.OrdinalIgnoreCase));
+
+    private async Task<bool> ResolveWarStatusAsync(PlayerMapTooltipStats? stats)
+    {
+        if (AppState.MyPlayer is null || stats is null)
+        {
+            return false;
+        }
+
+        var country = await CountryGovernanceService.GetCountryDetailsAsync(AppState.MyPlayer.CountriesId);
+        if (country == null)
+        {
+            return false;
+        }
+
+        return country.CountryWarCountryFroms
+            .Concat(country.CountryWarCountryTos)
+            .Any(war =>
+                string.Equals(war.Status, CountryWarStatus.Active.ToDbValue(), StringComparison.OrdinalIgnoreCase)
+                && ((war.CountryFromId == country.CountriesId && war.CountryToId == stats.CountryId)
+                    || (war.CountryToId == country.CountriesId && war.CountryFromId == stats.CountryId)));
+    }
+
+    private string GetMilitaryRequirementHint()
+    {
+        if (_stats is null)
+        {
+            return T["parts.foreignPlayerTooltip.hint.unavailable"];
+        }
+
+        if (ShowSameCountryBlockedHint)
+        {
+            return T["parts.foreignPlayerTooltip.hint.sameCountryBlocked"];
+        }
+
+        if (ShowWarDeclarationRequiredHint)
+        {
+            return T["parts.foreignPlayerTooltip.hint.declareWarRequired"];
+        }
+
+        return T["parts.foreignPlayerTooltip.hint.unavailable"];
+    }
+
+    private void CloseTooltip()
+    {
+        AppState.ClearPlayerInfo();
+    }
+
+    private void OpenChat()
+    {
+        if (_stats == null)
+        {
+            return;
+        }
+
+        AppState.OpenChat(ChatChannel.Direct, _stats.PlayerId, _stats.PlayerName);
+    }
+
+    private Task OpenMilitaryAsync(string missionType)
+    {
+        if (_stats == null || AppState.MyPlayer == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        AppState.SetPendingMilitaryAction(_stats.PlayerId, missionType);
+        AppState.OpenModal(ModalTypesEnum.MilitaryAction);
+
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleMissionActionAsync()
+    {
+        if (_activeMission == null || AppState.MyPlayer == null || _isChangingMission)
+        {
+            return;
+        }
+
+        _isChangingMission = true;
+        _missionFeedback = null;
+
+        try
+        {
+            if (CanWithdrawMission(_activeMission))
+            {
+                await MilitaryTransportService.WithdrawStationedUnitsAsync(AppState.MyPlayer.PlayersId, _activeMission.PlayerMilitaryTransportsId);
+                _missionFeedback = T["parts.foreignPlayerTooltip.feedback.withdrawOrdered"];
+            }
+            else
+            {
+                await MilitaryTransportService.CancelAttackAsync(AppState.MyPlayer.PlayersId, _activeMission.PlayerMilitaryTransportsId);
+                _missionFeedback = GetCancelSuccessLabel(_activeMission);
+            }
+
+            _activeMission = await MilitaryTransportService.GetLatestOutgoingMissionAsync(AppState.MyPlayer.PlayersId, AppState.ClickedLastPlayer);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "ForeignPlayerTooltip failed to change mission {TransportId} for player {PlayerId}.", _activeMission?.PlayerMilitaryTransportsId, AppState.MyPlayer?.PlayersId);
+            _missionFeedback = ex.Message;
+        }
+        finally
+        {
+            _isChangingMission = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private static bool CanWithdrawMission(PlayerMilitaryTransport transport)
+        => string.Equals(transport.Status, PlayerTransportStatus.InSiege.ToDbValue(), StringComparison.OrdinalIgnoreCase);
+
+    private string GetMissionLabel(PlayerMilitaryTransport transport)
+        => transport.MissionType switch
+        {
+            nameof(PlayerMilitaryTransportMissionType.Siege) => T["parts.foreignPlayerTooltip.action.siege"],
+            nameof(PlayerMilitaryTransportMissionType.Attack) => T["parts.foreignPlayerTooltip.action.attack"],
+            nameof(PlayerMilitaryTransportMissionType.Aid) => T["parts.foreignPlayerTooltip.action.help"],
+            _ => transport.MissionType
+        };
+
+    private string GetMissionStatusLabel(PlayerMilitaryTransport transport)
+        => transport.Status.Trim().ToLowerInvariant() switch
+        {
+            nameof(PlayerTransportStatus.InProgress) => T["tabs.transports.status.inProgress"],
+            nameof(PlayerTransportStatus.InSiege) => T["tabs.military.transportStatus.inSiege"],
+            _ => transport.Status
+        };
+
+    private string GetMissionActionHint(PlayerMilitaryTransport transport)
+        => CanWithdrawMission(transport)
+            ? T["parts.foreignPlayerTooltip.operation.stationedHint"]
+            : T["parts.foreignPlayerTooltip.operation.inProgressHint"];
+
+    private string GetMissionActionLabel(PlayerMilitaryTransport transport)
+        => CanWithdrawMission(transport)
+            ? T["parts.foreignPlayerTooltip.operation.withdraw"]
+            : transport.MissionType switch
+            {
+                nameof(PlayerMilitaryTransportMissionType.Siege) => T["parts.foreignPlayerTooltip.operation.cancelSiege"],
+                nameof(PlayerMilitaryTransportMissionType.Attack) => T["parts.foreignPlayerTooltip.operation.cancelAttack"],
+                _ => T["parts.foreignPlayerTooltip.operation.cancelMission"]
+            };
+
+    private string GetCancelSuccessLabel(PlayerMilitaryTransport transport)
+        => transport.MissionType switch
+        {
+            nameof(PlayerMilitaryTransportMissionType.Siege) => T["parts.foreignPlayerTooltip.feedback.siegeCancelled"],
+            nameof(PlayerMilitaryTransportMissionType.Attack) => T["parts.foreignPlayerTooltip.feedback.attackCancelled"],
+            _ => T["parts.foreignPlayerTooltip.feedback.missionCancelled"]
+        };
+
+    private static string GetMissionActionButtonClass(PlayerMilitaryTransport transport)
+        => CanWithdrawMission(transport)
+            ? "btn btn-outline-light"
+            : transport.MissionType switch
+            {
+                nameof(PlayerMilitaryTransportMissionType.Siege) => "btn btn-outline-warning",
+                nameof(PlayerMilitaryTransportMissionType.Attack) => "btn btn-outline-danger",
+                _ => "btn btn-outline-light"
+            };
+}

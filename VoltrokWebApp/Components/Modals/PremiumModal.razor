@@ -1,0 +1,397 @@
+@inject PremiumService PremiumService
+@inject NavigationManager Navigation
+@inject IJSRuntime JsRuntime
+@using VoltrokServices.Services.Premium
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inherits AppStateComponentBase
+
+@if (AppState.ActiveModal == ModalTypesEnum.Premium)
+{
+    <div class="info-overlay full-page" @onclick:stopPropagation="true">
+        <div class="info-dialog glass-panel premium-dialog premium-shell" @onclick:stopPropagation="true">
+            <div class="dialog-body-container">
+                <div class="main-content-panel premium-content">
+                    <div class="premium-header">
+                        <div class="premium-header-copy">
+                            <div class="premium-eyebrow">@T["modals.premium.eyebrow"]</div>
+                            <div class="premium-header-row">
+                                <h1 class="premium-title">@T["modals.premium.title"]</h1>
+                            </div>
+                            <p class="premium-subtitle">@T["modals.premium.subtitle"]</p>
+
+                            @if (_status is not null)
+                            {
+                                <div class="premium-status-row">
+                                    <div class="management-tab premium-status-pill @(_status.IsPremiumActive ? "active" : "inactive")">
+                                        <span class="premium-status-pill-label">@(_status.IsPremiumActive ? T["modals.premium.status.active"] : T["modals.premium.status.inactive"])</span>
+                                        <span class="premium-status-pill-date">@string.Format(T["modals.premium.status.until"], GetStatusEndsLabel())</span>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <button type="button" class="management-tab modal-close-tab premium-close" @onclick="CloseModal">
+                            <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                            @T["layout.main.dismiss"]
+                        </button>
+                    </div>
+
+                    @if (!string.IsNullOrWhiteSpace(_statusMessage))
+                    {
+                        <div class="alert alert-info border-0 bg-info bg-opacity-10 text-info mb-3">@_statusMessage</div>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(_errorMessage))
+                    {
+                        <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger mb-3">@_errorMessage</div>
+                    }
+
+                    @if (_isLoading)
+                    {
+                        <div class="premium-empty-state building-card-large text-center text-muted">
+                            @T["modals.premium.loadingStatus"]
+                        </div>
+                    }
+                    else if (_status is not null)
+                    {
+                        <section class="premium-picker">
+                            @foreach (var group in new[] { PremiumService.PremiumPackageKind.BattlePass, PremiumService.PremiumPackageKind.Shield })
+                            {
+                                <article class="premium-kind-card building-card-large">
+                                    <div class="premium-kind-head">
+                                        <div>
+                                            <div class="premium-kind-label">@GetKindLabel(group)</div>
+                                            <h2 class="premium-kind-title">@T["modals.premium.kind.choosePlan"]</h2>
+                                        </div>
+
+                                        <div class="premium-kind-badge">@GetKindBadge(group)</div>
+                                    </div>
+
+                                    <div class="row g-3 premium-plan-grid">
+                                        @foreach (var plan in GetPlansForKind(group))
+                                        {
+                                            <div class="col-12">
+                                                <button type="button"
+                                                        class="premium-plan-card detail-row @(IsSelectedPlan(plan) ? "selected" : string.Empty) @(IsPlanActive(plan) ? "owned" : string.Empty)"
+                                                        disabled="@(!CanSelectPlan(plan))"
+                                                        @onclick="() => SelectPlan(plan)">
+                                                    <div class="premium-plan-icon">
+                                                        <iconify-icon icon="solar:star-bold"></iconify-icon>
+                                                    </div>
+
+                                                    <div class="premium-plan-copy">
+                                                        <div class="premium-plan-name">@GetPlanName(plan)</div>
+                                                        <div class="premium-plan-price">@GetPriceLabel(plan)</div>
+                                                        <div class="premium-plan-note">@GetPlanShortLabel(plan)</div>
+                                                    </div>
+
+                                                    <div class="premium-plan-state">@GetPlanPill(plan)</div>
+                                                </button>
+                                            </div>
+                                        }
+                                    </div>
+                                </article>
+                            }
+                        </section>
+
+                        <section class="premium-selection-card building-card-large" @ref="_selectionCardRef">
+                            <div class="premium-selection-top">
+                                <div class="premium-selection-copy">
+                                    <div class="premium-selection-kicker">@T["modals.premium.selection.selected"]</div>
+                                    <h3 class="premium-selection-title">@((SelectedPlan is null) ? T["modals.premium.selection.pickPlan"] : GetPlanName(SelectedPlan))</h3>
+                                    <p class="premium-selection-desc">
+                                        @(SelectedPlan is null ? T["modals.premium.selection.tapAbove"] : GetSelectedPlanSummary())
+                                    </p>
+                                </div>
+
+                                <div class="premium-selection-action">
+                                    <div class="premium-selection-price-label">@((SelectedPlan is null) ? "-" : GetPriceLabel(SelectedPlan))</div>
+                                    <button type="button"
+                                            class="management-tab premium-selection-button premium-selection-button--cta"
+                                            @onclick="StartSelectedPlanAsync"
+                                            disabled="@(!CanStartSelectedPlan || _isRedirecting)">
+                                        <iconify-icon icon="solar:star-bold" class="me-2"></iconify-icon>
+                                        @GetSelectedPlanActionLabel()
+                                    </button>
+                                </div>
+                            </div>
+
+                            @if (SelectedPlan is not null)
+                            {
+                                <div class="premium-selection-feature-grid row g-2">
+                                    @foreach (var feature in GetSelectedPlanFeatures(SelectedPlan))
+                                    {
+                                        <div class="col-12 col-md-6">
+                                            <div class="premium-selection-feature detail-row">
+                                                <div class="premium-selection-feature-icon">
+                                                    <iconify-icon icon="solar:check-circle-bold"></iconify-icon>
+                                                </div>
+                                                <div class="premium-selection-feature-copy">
+                                                    <div class="premium-selection-feature-title">@feature.Title</div>
+                                                    <div class="premium-selection-feature-desc">@feature.Description</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </section>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private PremiumStatusView? _status;
+    private IReadOnlyList<PremiumService.ConfiguredPlan> _plans = [];
+    private string? _selectedPlanCode;
+    private bool _isLoading;
+    private bool _isRedirecting;
+    private string? _errorMessage;
+    private string? _statusMessage;
+    private ElementReference _selectionCardRef;
+    private bool _scrollSelectionPending;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (AppState.ActiveModal == ModalTypesEnum.Premium)
+        {
+            await LoadAsync();
+        }
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        if (AppState.ActiveModal == ModalTypesEnum.Premium)
+        {
+            await LoadAsync();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_scrollSelectionPending)
+        {
+            _scrollSelectionPending = false;
+            var module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/dom-utils.js");
+            await module.InvokeVoidAsync("scrollElementIntoView", _selectionCardRef);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task LoadAsync()
+    {
+        if (AppState.MyPlayer == null)
+        {
+            _status = null;
+            return;
+        }
+
+        _isLoading = true;
+        _errorMessage = null;
+        _statusMessage = ResolveStatusMessage();
+
+        try
+        {
+            _status = await PremiumService.GetStatusAsync(AppState.MyPlayer.PlayersId);
+            _plans = (await PremiumService.GetPlansFromConfigurationAsync())
+                .Where(plan => !plan.IsFreePlan)
+                .ToList();
+            _selectedPlanCode ??= _plans.FirstOrDefault(plan => !IsPlanActive(plan))?.Code
+                ?? _plans.FirstOrDefault()?.Code;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "PremiumModal failed to load premium status for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task StartPlanAsync(string planCode)
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        var plan = _plans.FirstOrDefault(q => q.Code == planCode);
+        if (plan is null)
+        {
+            _errorMessage = T["modals.premium.error.planUnavailable"];
+            return;
+        }
+
+        _isRedirecting = true;
+        _errorMessage = null;
+
+        try
+        {
+            var currentPath = Navigation.ToAbsoluteUri(Navigation.Uri).GetLeftPart(UriPartial.Path);
+            var successUrl = $"{currentPath}?premiumResult=success&session_id={{CHECKOUT_SESSION_ID}}";
+            var cancelUrl = $"{currentPath}?premiumResult=cancelled";
+            var checkoutUrl = await PremiumService.CreateCheckoutSessionUrlAsync(AppState.MyPlayer.PlayersId, planCode, successUrl, cancelUrl);
+            Navigation.NavigateTo(checkoutUrl, forceLoad: true);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "PremiumModal failed to create checkout for player {PlayerId} and plan {PlanCode}.", AppState.MyPlayer?.PlayersId, planCode);
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isRedirecting = false;
+        }
+    }
+
+    private string? ResolveStatusMessage()
+    {
+        return null;
+    }
+
+    private void SelectPlan(PremiumService.ConfiguredPlan plan)
+    {
+        _selectedPlanCode = plan.Code;
+        _scrollSelectionPending = true;
+    }
+
+    private Task StartSelectedPlanAsync()
+        => SelectedPlan is null ? Task.CompletedTask : StartPlanAsync(SelectedPlan.Code);
+
+    private bool CanStartSelectedPlan
+        => SelectedPlan is not null;
+
+    private bool CanSelectPlan(PremiumService.ConfiguredPlan plan)
+        => true;
+
+    private string GetKindLabel(PremiumService.PremiumPackageKind packageKind)
+        => packageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? T["modals.premium.kind.battlePass"]
+            : T["modals.premium.kind.shieldPass"];
+
+    private string GetKindBadge(PremiumService.PremiumPackageKind packageKind)
+        => packageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? T["modals.premium.kind.battlePassBadge"]
+            : T["modals.premium.kind.shieldPassBadge"];
+
+    private string GetPlanPill(PremiumService.ConfiguredPlan plan)
+    {
+        if (IsPlanActive(plan))
+        {
+            return T["modals.premium.plan.pill.active"];
+        }
+
+        return T["modals.premium.plan.pill.buy"];
+    }
+
+    private string GetPlanShortLabel(PremiumService.ConfiguredPlan plan)
+    {
+        if (IsPlanActive(plan))
+        {
+            return T["modals.premium.plan.short.active"];
+        }
+
+        return T["modals.premium.plan.short.buy"];
+    }
+
+    private IReadOnlyList<PremiumService.ConfiguredPlan> GetPlansForKind(PremiumService.PremiumPackageKind packageKind)
+        => _plans
+            .Where(plan => plan.PackageKind == packageKind)
+            .Where(plan => !plan.IsFreePlan)
+            .OrderBy(plan => plan.DurationHours)
+            .ToList();
+
+    private PremiumService.ConfiguredPlan? SelectedPlan
+        => _plans.FirstOrDefault(plan => string.Equals(plan.Code, _selectedPlanCode, StringComparison.Ordinal));
+
+    private string GetPlanName(PremiumService.ConfiguredPlan plan)
+        => plan.Code switch
+        {
+            "battlepass_season" => T["modals.premium.plan.name.battlePassSeason"],
+            "battlepass_month" => T["modals.premium.plan.name.battlePassMonth"],
+            "battlepass_6_months" => T["modals.premium.plan.name.battlePassHalfYear"],
+            "battlepass_year" => T["modals.premium.plan.name.battlePassYear"],
+            "shield_season" => T["modals.premium.plan.name.shieldPassSeason"],
+            "shield_month" => T["modals.premium.plan.name.shieldPassMonth"],
+            "shield_6_months" => T["modals.premium.plan.name.shieldPassHalfYear"],
+            "shield_year" => T["modals.premium.plan.name.shieldPassYear"],
+            _ => plan.Name
+        };
+
+    private bool IsSelectedPlan(PremiumService.ConfiguredPlan plan)
+        => string.Equals(plan.Code, _selectedPlanCode, StringComparison.Ordinal);
+
+    private string GetPriceLabel(PremiumService.ConfiguredPlan plan)
+        => plan.PriceLabel ?? T["modals.premium.plan.pill.unavailable"];
+
+    private string GetSelectedPlanActionLabel()
+    {
+        if (SelectedPlan is null)
+        {
+            return T["modals.premium.selection.buyNow"];
+        }
+
+        return T["modals.premium.selection.buyNow"];
+    }
+
+    private string GetSelectedPlanSummary()
+    {
+        if (SelectedPlan is null)
+        {
+            return string.Empty;
+        }
+
+        if (IsPlanActive(SelectedPlan))
+        {
+            return string.Format(T["modals.premium.selection.alreadyActiveUntil"], GetSelectedPlanEndsLabel(SelectedPlan));
+        }
+
+        return SelectedPlan.PackageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? T["modals.premium.selection.battlePassSummary"]
+            : T["modals.premium.selection.shieldPassSummary"];
+    }
+
+    private string GetStatusEndsLabel()
+        => _status?.PremiumEndsAtUtc?.ToLocalTime().ToString("g") ?? "n/a";
+
+    private string GetSelectedPlanEndsLabel(PremiumService.ConfiguredPlan plan)
+        => plan.PackageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? _status?.PremiumEndsAtUtc?.ToLocalTime().ToString("g") ?? "n/a"
+            : _status?.ShieldEndsAtUtc?.ToLocalTime().ToString("g") ?? "n/a";
+
+    private IReadOnlyList<PremiumFeatureItem> GetSelectedPlanFeatures(PremiumService.ConfiguredPlan plan)
+        => plan.PackageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? [
+                new PremiumFeatureItem(T["modals.premium.features.battlePass.transportSpeed.title"], T["modals.premium.features.battlePass.transportSpeed.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.battlePass.militarySpeed.title"], T["modals.premium.features.battlePass.militarySpeed.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.battlePass.unitProduction.title"], T["modals.premium.features.battlePass.unitProduction.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.battlePass.premiumBadge.title"], T["modals.premium.features.battlePass.premiumBadge.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.battlePass.customAvatar.title"], T["modals.premium.features.battlePass.customAvatar.desc"])
+            ]
+            : [
+                new PremiumFeatureItem(T["modals.premium.features.shieldPass.shieldAccess.title"], T["modals.premium.features.shieldPass.shieldAccess.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.shieldPass.protectionActive.title"], T["modals.premium.features.shieldPass.protectionActive.desc"]),
+                new PremiumFeatureItem(T["modals.premium.features.shieldPass.flexibleDuration.title"], T["modals.premium.features.shieldPass.flexibleDuration.desc"])
+            ];
+
+    private bool IsPlanActive(PremiumService.ConfiguredPlan plan)
+        => plan.PackageKind == PremiumService.PremiumPackageKind.BattlePass
+            ? _status?.IsPremiumActive == true
+            : _status?.IsShieldPackageActive == true;
+
+    private void CloseModal()
+    {
+        Navigation.NavigateTo("/", replace: true);
+        AppState.CloseModal();
+    }
+
+    private sealed record PremiumFeatureItem(string Title, string Description);
+}

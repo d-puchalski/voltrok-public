@@ -1,0 +1,339 @@
+@using System.Diagnostics
+@using VoltrokEF
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Enums
+@using VoltrokWebApp.Components.Parts
+@using VoltrokWebApp.Components.Tabs
+
+@inject PlayersService PlayersService
+@inherits AppStateComponentBase
+
+@if (AppState.ActiveModal == ModalTypesEnum.Player && AppState.ClickedLastPlayer == AppState.MyPlayer?.PlayersId)
+{
+    <div class="info-overlay full-page">
+        <div class="info-dialog glass-panel full-page-dialog player-overview-dialog">
+            <div class="dialog-body-container d-flex flex-row flex-nowrap">
+                @if (_isLoading)
+                {
+                    <div class="main-content-panel d-flex flex-column align-items-center justify-content-center" style="width: 100%">
+                        <iconify-icon icon="line-md:loading-twotone-loop" width="64" height="64" class="mb-3 text-primary"></iconify-icon>
+                        <h4 class="text-white">@T["modals.player.loadingTitle"]</h4>
+                        <div class="progress mt-2" style="width: 200px; height: 4px; background: rgba(255,255,255,0.1);">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar"></div>
+                        </div>
+                        <p class="text-white mt-3 small text-uppercase fw-bold letter-spacing-1">@T["modals.player.loadingSubtitle"]</p>
+                    </div>
+                }
+                else if (_player == null)
+                {
+                    <div class="main-content-panel d-flex flex-column align-items-center justify-content-center" style="width: 100%">
+                        <iconify-icon icon="carbon:warning" width="64" height="64" class="mb-3 text-primary"></iconify-icon>
+                        <h4 class="text-white">@T["modals.player.noPlayerTitle"]</h4>
+                        <p class="text-muted">@T["modals.player.noPlayerSubtitle"]</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="side-panel player-overview-side-panel @(_isSidePanelVisible ? string.Empty : "player-overview-side-panel-hidden")">
+                        @if (_player != null)
+                        {
+                            <div class="d-flex flex-column align-items-center gap-3 mb-4">
+                                <div class="avatar-preview-large">
+                                    @if (!string.IsNullOrWhiteSpace(_player.PlayerAvatar))
+                                    {
+                                        <img class="player-avatar-image-large" src="@_player.PlayerAvatar" alt="@T["modals.player.avatarAlt"]" />
+                                    }
+                                    else
+                                    {
+                                        <iconify-icon icon="carbon:user-avatar" width="96" class="text-white-50"></iconify-icon>
+                                    }
+                                </div>
+                            </div>
+
+                            <div class="building-details-vertical">
+                                <div class="detail-row">
+                                    <span class="detail-label">@T["modals.player.detail.player"]</span>
+                                    <span class="detail-value">
+                                        <PlayerNameWithBadges PlayerId="@_player.PlayersId" PlayerName="@_player.Name" />
+                                        @if (_player.IsNpc)
+                                        {
+                                            <span class="badge bg-info text-dark ms-1">@T["modals.player.npcBadge"]</span>
+                                        }
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label">@T["modals.player.detail.country"]</span>
+                                    <span class="detail-value">
+                                        <CountryNameWithFlag Name="@_player.Countries.Name"
+                                                             FlagUrl="@_player.Countries.Flag"
+                                                             IsoCode2="@_player.Countries.IsoCode2"
+                                                             Size="18" />
+                                    </span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label player-overview-detail-label">
+                                        <img class="player-overview-detail-icon" src="/assets/icons/resources/money.png" alt="@T["modals.player.detail.money"]" />
+                                        <span>@T["modals.player.detail.money"]</span>
+                                    </span>
+                                    <span class="detail-value">@FormatMoney(_player.Money)</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label player-overview-detail-label">
+                                        <img class="player-overview-detail-icon" src="/assets/icons/resources/oil.png" alt="@T["modals.trade.resource.oil"]" />
+                                        <span>@T["modals.trade.resource.oil"]</span>
+                                    </span>
+                                    <span class="detail-value">@_player.Oil.ToString("N0")</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label player-overview-detail-label">
+                                        <img class="player-overview-detail-icon" src="/assets/icons/resources/uranium.png" alt="@T["modals.trade.resource.uranium"]" />
+                                        <span>@T["modals.trade.resource.uranium"]</span>
+                                    </span>
+                                    <span class="detail-value">@_player.Uranium.ToString("N0")</span>
+                                </div>
+                                <div class="detail-row">
+                                    <span class="detail-label player-overview-detail-label">
+                                        <img class="player-overview-detail-icon" src="/assets/icons/resources/chips.png" alt="@T["modals.trade.resource.chips"]" />
+                                        <span>@T["modals.trade.resource.chips"]</span>
+                                    </span>
+                                    <span class="detail-value">@_player.Chips.ToString("N0")</span>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="text-muted small">
+                                @T["modals.player.regionCountryContext"]
+                            </div>
+                            <div class="small text-white mt-2">
+                                @T["modals.player.tokenLabel"]: @(AppState.CountryIsoCode2 ?? T["modals.player.notSelected"])
+                            </div>
+                        }
+
+                    </div>
+
+                    <div class="main-content-panel player-overview-main-content @(_isSidePanelVisible ? string.Empty : "player-overview-main-content-expanded")">
+
+                        <div class="management-tabs mb-4">
+                            <button type="button"
+                                    class="player-overview-side-toggle"
+                                    title="@(_isSidePanelVisible ? T["modals.player.sidePanel.hide"] : T["modals.player.sidePanel.show"])"
+                                    @onclick="ToggleSidePanel">
+                                <iconify-icon icon="@(_isSidePanelVisible ? "solar:alt-arrow-left-line-duotone" : "solar:alt-arrow-right-line-duotone")" width="20" height="20"></iconify-icon>
+                            </button>
+                            <button class="management-tab @(AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Overview ? "active" : "") @(AppState.IsOnboardingTarget("player-overview-tab-overview") ? "onboarding-highlight" : "")" @onclick="() => SwitchTabAsync(PlayerOverviewTabEnum.Overview)">
+                                <iconify-icon icon="carbon:settings" class="me-1"></iconify-icon> @T["modals.player.tab.overview"]
+                            </button>
+                            <button class="management-tab @(AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Inventory ? "active" : "") @(AppState.IsOnboardingTarget("player-overview-tab-inventory") ? "onboarding-highlight" : "")" @onclick="() => SwitchTabAsync(PlayerOverviewTabEnum.Inventory)">
+                                <iconify-icon icon="solar:box-bold" class="me-1"></iconify-icon> @T["modals.player.tab.inventory"]
+                            </button>
+                            <button class="management-tab @(AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Trade ? "active" : "") @(AppState.IsOnboardingTarget("player-overview-tab-trade") ? "onboarding-highlight" : "")" @onclick="() => SwitchTabAsync(PlayerOverviewTabEnum.Trade)">
+                                <iconify-icon icon="carbon:delivery-truck" class="me-1"></iconify-icon> @T["modals.player.tab.trade"]
+                            </button>
+                            <button class="management-tab @(AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Military ? "active" : "") @(AppState.IsOnboardingTarget("player-overview-tab-military") || AppState.IsOnboardingTarget("player-overview-military") ? "onboarding-highlight" : "")" @onclick="() => SwitchTabAsync(PlayerOverviewTabEnum.Military)">
+                                <iconify-icon icon="carbon:bastion-host" class="me-1"></iconify-icon> @T["modals.player.tab.military"]
+                            </button>
+                            <button class="management-tab @(AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Settings ? "active" : "") @(AppState.IsOnboardingTarget("player-overview-tab-settings") ? "onboarding-highlight" : "")" @onclick="() => SwitchTabAsync(PlayerOverviewTabEnum.Settings)">
+                                <iconify-icon icon="carbon:settings" class="me-1"></iconify-icon> @T["modals.player.tab.settings"]
+                            </button>
+
+                            <button type="button" class="management-tab player-overview-close-tab ms-auto" @onclick="CloseModal">
+                                <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon> @T["layout.main.dismiss"]
+                            </button>
+                        </div>
+
+                        @if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Trade)
+                        {
+                            <TradeTab Player="_player" />
+                        }
+
+                        @if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Military)
+                        {
+                            <MilitaryTab Player="_player" OnPlayerUpdated="HandlePlayerUpdated" />
+                        }
+
+                        @if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Overview)
+                        {
+                            <OverviewTab Player="_player" />
+                        }
+
+                        @if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Inventory)
+                        {
+                            <InventoryTab Player="_player" />
+                        }
+
+                        @if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Settings)
+                        {
+                            <SettingsTab />
+                        }
+
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+
+@code {
+    private Player? _player;
+    private bool _isLoading;
+    private bool _isTabLoading;
+    private bool _isSidePanelVisible = true;
+
+    protected override void OnInitialized()
+    {
+        AppState.OnBuildingInfoOpened += HandleBuildingInfoOpened;
+    }
+
+    private async Task LoadBuildingData()
+    {
+        _isLoading = true;
+
+        try
+        {
+            if (AppState.ClickedLastPlayer == Guid.Empty)
+            {
+                _player = null;
+                AppState.SetCountryIsoCode2(null);
+                return;
+            }
+
+            if (AppState.ClickedLastPlayer == AppState.MyPlayer?.PlayersId)
+            {
+                var hasPendingMilitary = AppState.PendingMilitaryDestinationId.HasValue
+                    && !string.IsNullOrWhiteSpace(AppState.PendingMilitaryMissionType);
+                var isStrategicTab = AppState.ActivePlayerOverviewTabEnum is PlayerOverviewTabEnum.Settings;
+
+                if (!hasPendingMilitary && !isStrategicTab)
+                {
+                    AppState.SetBuildingInfoTab(PlayerOverviewTabEnum.Overview);
+                }
+
+                if (AppState.ActivePlayerOverviewTabEnum == PlayerOverviewTabEnum.Military)
+                {
+                    AppState.SetBuildingInfoTab(PlayerOverviewTabEnum.Overview);
+                }
+            }
+            else
+            {
+                AppState.SetBuildingInfoTab(PlayerOverviewTabEnum.Trade);
+            }
+
+            var activeTab = AppState.ActivePlayerOverviewTabEnum;
+            _player = await PlayersService.GetPlayerForTab(AppState.ClickedLastPlayer, activeTab);
+
+            if (_player?.Countries != null)
+            {
+                var regionToken = !string.IsNullOrWhiteSpace(_player.Countries.IsoCode2)
+                    ? _player.Countries.IsoCode2
+                    : _player.Countries.Name;
+                AppState.SetCountryIsoCode2(regionToken);
+            }
+            else
+            {
+                AppState.SetCountryIsoCode2(null);
+            }
+
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void CloseModal()
+    {
+        _player = null;
+        _isSidePanelVisible = true;
+        _isTabLoading = false;
+        AppState.SetCountryIsoCode2(null);
+        AppState.SetBuildingInfoTab(PlayerOverviewTabEnum.Overview);
+        AppState.CloseModal();
+    }
+
+    private async void HandleBuildingInfoOpened()
+    {
+        try
+        {
+            await LoadBuildingData();
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "PlayerOverviewModal failed to refresh after building info opened for player {PlayerId}.", _player?.PlayersId);
+        }
+    }
+
+    private async Task LoadTabData(PlayerOverviewTabEnum tabEnum)
+    {
+        if (_player == null)
+        {
+            return;
+        }
+
+        _isTabLoading = true;
+
+        try
+        {
+            var updated = await PlayersService.GetPlayerForTab(_player.PlayersId, tabEnum);
+            if (updated == null)
+            {
+                return;
+            }
+
+            _player = updated;
+            if (AppState.MyPlayer?.PlayersId == updated.PlayersId)
+            {
+                AppState.SetMyPlayer(updated);
+            }
+        }
+        finally
+        {
+            _isTabLoading = false;
+        }
+    }
+
+    private async Task SwitchTabAsync(PlayerOverviewTabEnum tabEnum)
+    {
+        if (_isLoading || _isTabLoading || AppState.ActivePlayerOverviewTabEnum == tabEnum)
+        {
+            return;
+        }
+
+        if (tabEnum == PlayerOverviewTabEnum.Military)
+        {
+            AppState.MarkOnboardingTargetClicked("player-overview-military");
+        }
+
+        AppState.SetBuildingInfoTab(tabEnum);
+        await LoadTabData(tabEnum);
+    }
+
+    private async Task HandlePlayerUpdated(Player updatedPlayer)
+    {
+        _player = updatedPlayer;
+
+        if (AppState.MyPlayer?.PlayersId == updatedPlayer.PlayersId)
+        {
+            AppState.SetMyPlayer(updatedPlayer);
+        }
+    }
+
+    private static bool IsShieldActive(DateTime? validTillUtc)
+        => validTillUtc.HasValue && validTillUtc.Value > DateTime.UtcNow;
+
+    private void ToggleSidePanel()
+    {
+        _isSidePanelVisible = !_isSidePanelVisible;
+    }
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+
+    public new void Dispose()
+    {
+        AppState.OnBuildingInfoOpened -= HandleBuildingInfoOpened;
+        base.Dispose();
+    }
+
+}

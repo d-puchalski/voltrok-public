@@ -1,0 +1,1198 @@
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services
+@using VoltrokServices.Services.Countries
+@using VoltrokServices.Services.Military
+@using VoltrokServices.Services.Players
+@using VoltrokUtils
+@using VoltrokUtils.Engines
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+
+@inject IJSRuntime JsRuntime
+@inject IWebHostEnvironment HostEnvironment
+@inject CountriesService CountriesService
+@inject CountryGovernanceService CountryGovernanceService
+@inject PlayersService PlayersService
+@inject PlayerTradeService PlayerTradeService
+@inject PlayerMilitaryTransportService MilitaryTransportService
+
+@inherits AppStateComponentBase
+
+<div id="mapContainer" class="map-container"></div>
+
+@if (_isMapLoading)
+{
+    <div class="map-loading-overlay">
+        <div class="loader-content">
+            <iconify-icon icon="solar:spinner-bold" width="64" height="64" class="mb-3 text-primary"></iconify-icon>
+            <h4 class="text-white fw-bold">@T["layout.map.loading.title"]</h4>
+            <div class="progress mt-3" style="width: 200px; height: 4px; background: rgba(255,255,255,0.1);">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: @(_mapLoadingProgress)%"></div>
+            </div>
+            <p class="text-white mt-3 small text-uppercase">@_mapLoadingProgress%</p>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isMapLoading = true;
+    private int _mapLoadingProgress;
+
+    private const double DefaultMapLng = 8.5417; // Zurich
+    private const double DefaultMapLat = 47.3769; // Zurich
+    private const double DefaultMapZoom = 5;
+
+    // Last known map state
+    private double _currentLng = DefaultMapLng;
+    private double _currentLat = DefaultMapLat;
+    private double _currentZoom = DefaultMapZoom;
+
+    // Animation state
+    private readonly GeoJsonFeatureCollection _buildingPoints = new()
+    {
+        Features = []
+    };
+
+    private IJSObjectReference? _mapReference;
+    private DotNetObjectReference<MapClickHandler>? _clickHandler;
+    private List<Country>? _countryStyles;
+    private List<Guid> _ownWarCountryIds = [];
+    private List<Guid?>? _enemyWarCountryIds = [];
+    private List<CountryMapTooltipStats> _countryTooltipStats = [];
+    private List<PlayerMapTooltipStats> _playerTooltipStats = [];
+    private List<PlayerTrade> _activeTransports = [];
+    private List<PlayerMilitaryTransport> _activeMilitaryTransports = [];
+    private List<PlayerSiege> _activeSieges = [];
+    private DateTime _lastTransportRefreshUtc;
+    private DateTime _lastWarRefreshUtc;
+    private DateTime _lastCountryTooltipRefreshUtc;
+    private DateTime _lastPlayerTooltipRefreshUtc;
+    private DateTime _lastPlayerPointsRefreshUtc;
+    private DateTime _lastMyPlayerRefreshUtc;
+    private static readonly TimeSpan TransportRefreshInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan WarRefreshInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CountryTooltipRefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan PlayerTooltipRefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan PlayerPointsRefreshInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan MyPlayerRefreshInterval = TimeSpan.FromSeconds(10);
+    private const double MinMapZoom = 2;
+    private Guid? _lastKnownMyPlayerId;
+    private string? _lastKnownMyPlayerAvatar;
+    private bool _pendingWarOverlayRefresh;
+    private string? _appliedMapBaseLayer;
+    private string? _appliedMapColorMode;
+    private bool? _appliedShowPlayersLayer;
+    private bool? _appliedShowCountriesLayer;
+    private string? _appliedTransportVisibilitySignature;
+    private bool? _appliedShowSiegeLayer;
+    private string? _appliedMapLanguage;
+    private long _lastMapFocusRequestId;
+    private bool _hasAppliedInitialPlayerFocus;
+    private decimal? _lastFocusedPlayerLng;
+    private decimal? _lastFocusedPlayerLat;
+
+    private CancellationTokenSource? _transportUpdateCts;
+
+    private static bool IsValidPersistedViewState(double lng, double lat)
+    {
+        if (double.IsNaN(lng) || double.IsInfinity(lng) || double.IsNaN(lat) || double.IsInfinity(lat))
+        {
+            return false;
+        }
+
+        if (lng is < -180 or > 180 || lat is < -90 or > 90)
+        {
+            return false;
+        }
+
+        // Ignore the ocean fallback that can appear during transient map initialization.
+        return Math.Abs(lng) > 0.000001 || Math.Abs(lat) > 0.000001;
+    }
+
+    private static string NormalizeMapBaseLayer(string? baseLayer)
+    {
+        if (string.IsNullOrWhiteSpace(baseLayer))
+        {
+            return "none";
+        }
+
+        return baseLayer switch
+        {
+            "esri-imagery" => "esri-imagery",
+            "carto-dark" => "carto-dark",
+            _ => "none"
+        };
+    }
+
+    private async Task EnsurePlayerMapFocusAsync(bool force = false)
+    {
+        if (_mapReference == null || AppState.MyPlayer.PlayersId == Guid.Empty)
+        {
+            return;
+        }
+
+        var playerLng = AppState.MyPlayer.LocationX;
+        var playerLat = AppState.MyPlayer.LocationY;
+        var hasPlayerPositionChanged = _lastFocusedPlayerLng != playerLng || _lastFocusedPlayerLat != playerLat;
+
+        if (!force && _hasAppliedInitialPlayerFocus && !hasPlayerPositionChanged)
+        {
+            return;
+        }
+
+        await NavigateTo(playerLng, playerLat, Math.Max(_currentZoom, DefaultMapZoom));
+        _hasAppliedInitialPlayerFocus = true;
+        _lastFocusedPlayerLng = playerLng;
+        _lastFocusedPlayerLat = playerLat;
+    }
+
+    public async Task NavigateTo(decimal lng, decimal lat, double? zoom = null)
+    {
+        if (_mapReference != null)
+        {
+            var interop = new MapInteropService(JsRuntime);
+            var requestedZoom = zoom ?? _currentZoom;
+            var targetZoom = Math.Max(requestedZoom, MinMapZoom);
+            _currentZoom = targetZoom;
+            await interop.JumpTo(_mapReference, new MapCoordinates
+            {
+                Lng = lng,
+                Lat = lat,
+                Zoom = targetZoom
+            });
+        }
+    }
+
+    private async Task LoadWarCountriesAsync()
+    {
+        _ownWarCountryIds = [];
+        _enemyWarCountryIds = [];
+
+        var country = await CountryGovernanceService.GetCountryDetailsAsync(AppState.MyPlayer.CountriesId);
+        if (country == null)
+        {
+            return;
+        }
+
+        var enemyCountryIds = country.CountryWarCountryFroms
+            .Concat(country.CountryWarCountryTos)
+            .Where(w => string.Equals(w.Status, CountryWarStatus.Active.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+            .Select(w => w.CountryFromId == country.CountriesId ? w.CountryToId : w.CountryFromId)
+            .Distinct()
+            .ToList();
+
+        if (enemyCountryIds.Count == 0)
+        {
+            return;
+        }
+
+        _enemyWarCountryIds = enemyCountryIds.Select(static id => (Guid?)id).ToList();
+        _ownWarCountryIds = [AppState.MyPlayer.CountriesId];
+    }
+
+
+    private string NormalizeMapColorMode(string? colorMode)
+    {
+        return string.Equals(colorMode, "regions", StringComparison.OrdinalIgnoreCase)
+            ? "countries"
+            : (string.IsNullOrWhiteSpace(colorMode) ? "countries" : colorMode);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                var initialBaseLayer = NormalizeMapBaseLayer(AppState.MapBaseLayer);
+                var initialColorMode = NormalizeMapColorMode(AppState.MapColorMode);
+                _isMapLoading = true;
+                _mapLoadingProgress = 0;
+                await InvokeAsync(StateHasChanged);
+
+                // Load saved state from localStorage
+                try
+                {
+                    _mapLoadingProgress = 10;
+                    await InvokeAsync(StateHasChanged);
+                    var savedBaseLayer = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", "map_base_layer");
+                    if (!string.IsNullOrEmpty(savedBaseLayer))
+                    {
+                        initialBaseLayer = NormalizeMapBaseLayer(savedBaseLayer);
+                    }
+
+                    var savedColorMode = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", "map_color_mode");
+                    if (!string.IsNullOrEmpty(savedColorMode))
+                    {
+                        initialColorMode = NormalizeMapColorMode(savedColorMode);
+                    }
+
+                    var viewStateJson = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", "map_view_state");
+                    if (!string.IsNullOrEmpty(viewStateJson))
+                    {
+                        using var doc = System.Text.Json.JsonDocument.Parse(viewStateJson);
+                        var hasLng = doc.RootElement.TryGetProperty("longitude", out var lng);
+                        var hasLat = doc.RootElement.TryGetProperty("latitude", out var lat);
+                        if (hasLng && hasLat)
+                        {
+                            var persistedLng = lng.GetDouble();
+                            var persistedLat = lat.GetDouble();
+                            if (IsValidPersistedViewState(persistedLng, persistedLat))
+                            {
+                                _currentLng = persistedLng;
+                                _currentLat = persistedLat;
+                            }
+                        }
+
+                        if (doc.RootElement.TryGetProperty("zoom", out var zoom)) _currentZoom = Math.Max(MinMapZoom, zoom.GetDouble());
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "{LogPrefix}", T["layout.map.error.loadSavedStateLogPrefix"]);
+                }
+
+                if (AppState.MyPlayer.PlayersId != Guid.Empty)
+                {
+                    _currentLng = (double)AppState.MyPlayer.LocationX;
+                    _currentLat = (double)AppState.MyPlayer.LocationY;
+                    _currentZoom = Math.Max(_currentZoom, DefaultMapZoom);
+                }
+                
+                if (_currentLng == 0) _currentLng = 8.5417;
+                if (_currentLat == 0) _currentLng = 47.3769;
+
+                // Fetch region styles from DB
+                try
+                {
+                    _mapLoadingProgress = 20;
+                    await InvokeAsync(StateHasChanged);
+                    _countryStyles = await CountriesService.GetAllCountriesAsync();
+                    _countryTooltipStats = await CountriesService.GetCountryMapTooltipStatsAsync();
+                    _playerTooltipStats = await PlayersService.GetPlayerMapTooltipStatsAsync();
+                    AppState.SetPlayerTooltipStatsCache(_playerTooltipStats);
+                    await LoadWarCountriesAsync();
+                    _mapLoadingProgress = 40;
+                    await InvokeAsync(StateHasChanged);
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "{LogPrefix}", T["layout.map.error.loadRegionStylesLogPrefix"]);
+                }
+
+                var interop = new MapInteropService(JsRuntime);
+                _currentZoom = Math.Max(MinMapZoom, _currentZoom);
+                _mapReference = await interop.InitializeMap("mapContainer", _currentLng, _currentLat, _currentZoom, _countryStyles, initialColorMode, AppState.SelectedLanguage, BuildMapLocalization(), HostEnvironment.IsDevelopment());
+                _appliedMapLanguage = AppState.SelectedLanguage;
+                await RefreshCountryTooltipDataAsync(force: true);
+                await RefreshPlayerTooltipDataAsync(force: true);
+                await RefreshWarOverlayAsync();
+                await TryApplyPendingWarOverlayAsync();
+                _mapLoadingProgress = 60;
+                await InvokeAsync(StateHasChanged);
+
+                if (initialBaseLayer != "none")
+                {
+                    await interop.AddBaseLayer(_mapReference, initialBaseLayer);
+                }
+                AppState.SetMapBaseLayer(initialBaseLayer);
+                AppState.SetMapColorMode(initialColorMode);
+                _appliedMapBaseLayer = initialBaseLayer;
+                _appliedMapColorMode = initialColorMode;
+
+                // Fetch buildings from DB
+                _mapLoadingProgress = 70;
+                await InvokeAsync(StateHasChanged);
+                await RefreshPlayerPointsAsync(force: true);
+                _mapLoadingProgress = 90;
+                await InvokeAsync(StateHasChanged);
+                _lastKnownMyPlayerId = AppState.MyPlayer?.PlayersId;
+                _lastKnownMyPlayerAvatar = AppState.MyPlayer?.PlayerAvatar;
+                _mapLoadingProgress = 100;
+                await InvokeAsync(StateHasChanged);
+
+                // Add connections and transports layers
+                await interop.AddConnectionsLayer(_mapReference, new GeoJsonFeatureCollection());
+                await LoadActiveTransportsAsync();
+                await interop.AddTransportsLayer(_mapReference, BuildTransportRenderData());
+                await interop.AddSiegesLayer(_mapReference, BuildSiegeRenderData());
+                await ApplyMapControlStateAsync();
+                await EnsurePlayerMapFocusAsync(force: true);
+                await UpdateTransportsLayerAsync();
+                StartTransportUpdateLoop();
+
+                // Setup click handlers
+                await SetupMapClickHandlers();
+                await InvokeAsync(StateHasChanged);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "{LogPrefix}", T["layout.map.error.initializeLogPrefix"]);
+            }
+            finally
+            {
+                _isMapLoading = false;
+            }
+
+            await InvokeAsync(StateHasChanged);
+            await base.OnAfterRenderAsync(firstRender);
+        }
+
+        if (_mapReference != null)
+        {
+            var interop = new MapInteropService(JsRuntime);
+            await interop.SetMapCursor(_mapReference, "");
+            await TryApplyPendingWarOverlayAsync();
+        }
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await base.OnAppStateChangedAsync();
+
+        if (_mapReference == null)
+        {
+            _pendingWarOverlayRefresh = true;
+            return;
+        }
+
+        if (!string.Equals(_appliedMapLanguage, AppState.SelectedLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            var interop = new MapInteropService(JsRuntime);
+            await interop.SetMapLocalization(_mapReference, AppState.SelectedLanguage, BuildMapLocalization());
+            _appliedMapLanguage = AppState.SelectedLanguage;
+        }
+
+        await ApplyMapControlStateAsync();
+
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        await EnsurePlayerMapFocusAsync();
+        await RefreshWarOverlayAsync();
+
+        var playerId = AppState.MyPlayer.PlayersId;
+        var playerAvatar = AppState.MyPlayer.PlayerAvatar ?? string.Empty;
+        var hasAvatarChanged = _lastKnownMyPlayerId != playerId || !string.Equals(_lastKnownMyPlayerAvatar ?? string.Empty, playerAvatar, StringComparison.Ordinal);
+        if (hasAvatarChanged)
+        {
+            await UpdateMyPlayerPointAsync();
+            _lastKnownMyPlayerId = playerId;
+            _lastKnownMyPlayerAvatar = playerAvatar;
+        }
+    }
+
+    private async Task ApplyMapControlStateAsync()
+    {
+        if (_mapReference == null)
+        {
+            return;
+        }
+
+        var interop = new MapInteropService(JsRuntime);
+
+        var normalizedBaseLayer = NormalizeMapBaseLayer(AppState.MapBaseLayer);
+        if (!string.Equals(_appliedMapBaseLayer, normalizedBaseLayer, StringComparison.Ordinal))
+        {
+            if (normalizedBaseLayer == "none")
+            {
+                await interop.RemoveBaseLayer(_mapReference);
+            }
+            else
+            {
+                await interop.AddBaseLayer(_mapReference, normalizedBaseLayer);
+            }
+
+            _appliedMapBaseLayer = normalizedBaseLayer;
+        }
+
+        if (!string.Equals(_appliedMapColorMode, AppState.MapColorMode, StringComparison.Ordinal))
+        {
+            var normalizedColorMode = NormalizeMapColorMode(AppState.MapColorMode);
+            await interop.SetCountryColorMode(_mapReference, normalizedColorMode);
+            _appliedMapColorMode = normalizedColorMode;
+        }
+
+        if (_appliedShowCountriesLayer != AppState.MapShowCountriesLayer)
+        {
+            await interop.ToggleLayerVisibility(_mapReference, "countries-layer", AppState.MapShowCountriesLayer);
+            _appliedShowCountriesLayer = AppState.MapShowCountriesLayer;
+        }
+
+        if (_appliedShowPlayersLayer != AppState.MapShowPlayersLayer)
+        {
+            await interop.ToggleLayerVisibility(_mapReference, "points-layer", AppState.MapShowPlayersLayer);
+            _appliedShowPlayersLayer = AppState.MapShowPlayersLayer;
+        }
+
+        var transportVisibilitySignature = $"{AppState.MapShowAttackLayer}:{AppState.MapShowSiegeLayer}:{AppState.MapShowTradeLayer}";
+        if (!string.Equals(_appliedTransportVisibilitySignature, transportVisibilitySignature, StringComparison.Ordinal))
+        {
+            var showAnyTransport = AppState.MapShowAttackLayer || AppState.MapShowSiegeLayer || AppState.MapShowTradeLayer;
+            await interop.ToggleLayerVisibility(_mapReference, "transports-layer", showAnyTransport);
+            await interop.AddTransportsLayer(_mapReference, BuildTransportRenderData());
+            _appliedTransportVisibilitySignature = transportVisibilitySignature;
+        }
+
+        if (_appliedShowSiegeLayer != AppState.MapShowSiegeLayer)
+        {
+            await interop.ToggleLayerVisibility(_mapReference, "sieges-layer", AppState.MapShowSiegeLayer);
+            _appliedShowSiegeLayer = AppState.MapShowSiegeLayer;
+        }
+
+        if (AppState.MapFocusRequestId > _lastMapFocusRequestId
+            && AppState.MapFocusLng.HasValue
+            && AppState.MapFocusLat.HasValue)
+        {
+            _lastMapFocusRequestId = AppState.MapFocusRequestId;
+            await NavigateTo(AppState.MapFocusLng.Value, AppState.MapFocusLat.Value, AppState.MapFocusZoom);
+        }
+    }
+
+    private async Task TryApplyPendingWarOverlayAsync()
+    {
+        if (!_pendingWarOverlayRefresh || _mapReference == null || AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        await RefreshWarOverlayAsync();
+        _pendingWarOverlayRefresh = false;
+    }
+
+    private async Task SetupMapClickHandlers()
+    {
+        if (_mapReference == null) return;
+
+        try
+        {
+            // Create click handler with callbacks
+            var clickHandler = new MapClickHandler(
+                HandlePointClick,
+                onCountryClick: HandleCountryClick,
+                onMapClick: HandleMapClick
+            );
+
+            _clickHandler = DotNetObjectReference.Create(clickHandler);
+
+            var interop = new MapInteropService(JsRuntime);
+            await interop.OnPointClick(_mapReference, _clickHandler);
+            await interop.OnCountryClick(_mapReference, _clickHandler);
+            await interop.OnMapClick(_mapReference, _clickHandler);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["layout.map.error.setupClickHandlersLogPrefix"]);
+        }
+    }
+
+    private Task HandlePointClick(MapFeature feature)
+    {
+        if (!string.IsNullOrEmpty(feature.Id))
+        {
+            if (Guid.TryParse(feature.Id, out var buildingId))
+            {
+                if (AppState.MyPlayer?.ShieldValidTill is not null
+                    && AppState.MyPlayer.ShieldValidTill.Value > DateTime.UtcNow
+                    && AppState.MyPlayer.PlayersId != buildingId)
+                {
+                    return Task.CompletedTask;
+                }
+
+                AppState.ClearCountryInfo();
+                AppState.SetPlayerInfo(buildingId);
+
+                if (AppState.MyPlayer?.PlayersId == buildingId)
+                {
+                    if (AppState.ActiveModal != ModalTypesEnum.Player)
+                    {
+                        AppState.OpenModal(ModalTypesEnum.Player);
+                    }
+                }
+                else if (AppState.ActiveModal == ModalTypesEnum.Player)
+                {
+                    AppState.CloseModal();
+                }
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task HandleCountryClick(MapFeature feature)
+    {
+        AppState.ClearPlayerInfo();
+
+        var countryId = ResolveClickedCountryId(feature);
+        if (countryId.HasValue)
+        {
+            AppState.SetCountryInfo(countryId.Value);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task HandleMapClick(MapCoordinates coords, string? isoCode2, string? admCode1, string? name)
+    {
+        var clickedCountryId = ResolveClickedCountryId(isoCode2, name);
+        if (clickedCountryId.HasValue)
+        {
+            if (AppState.ActiveModal != ModalTypesEnum.Player && AppState.ClickedLastPlayer != Guid.Empty)
+            {
+                AppState.ClearPlayerInfo();
+            }
+
+            AppState.SetCountryInfo(clickedCountryId.Value);
+            return Task.CompletedTask;
+        }
+
+        if (AppState.ActiveModal != ModalTypesEnum.Player && AppState.ClickedLastPlayer != Guid.Empty)
+        {
+            AppState.ClearPlayerInfo();
+        }
+
+        AppState.ClearCountryInfo();
+
+        return Task.CompletedTask;
+    }
+
+    private Guid? ResolveClickedCountryId(MapFeature? feature)
+        => ResolveClickedCountryId(feature?.Properties?.IsoCode2, feature?.Properties?.Name);
+
+    private Guid? ResolveClickedCountryId(string? isoCode2, string? name)
+    {
+        var iso = NormalizeCountryCode(isoCode2);
+        if (!string.IsNullOrWhiteSpace(iso))
+        {
+            var byIso = _countryStyles?.FirstOrDefault(country =>
+                string.Equals(country.IsoCode2, iso, StringComparison.OrdinalIgnoreCase));
+            if (byIso != null)
+            {
+                return byIso.CountriesId;
+            }
+        }
+
+        var normalizedName = name?.Trim();
+        if (!string.IsNullOrWhiteSpace(normalizedName))
+        {
+            var byName = _countryStyles?.FirstOrDefault(country =>
+                string.Equals(country.Name, normalizedName, StringComparison.OrdinalIgnoreCase));
+            if (byName != null)
+            {
+                return byName.CountriesId;
+            }
+
+            var byTooltipName = _countryTooltipStats.FirstOrDefault(country =>
+                string.Equals(country.CountryName, normalizedName, StringComparison.OrdinalIgnoreCase));
+            if (byTooltipName != null)
+            {
+                return byTooltipName.CountryId;
+            }
+
+            var normalizedLookupName = NormalizeCountryName(normalizedName);
+            var byNormalizedName = _countryStyles?.FirstOrDefault(country =>
+                string.Equals(NormalizeCountryName(country.Name), normalizedLookupName, StringComparison.Ordinal));
+            if (byNormalizedName != null)
+            {
+                return byNormalizedName.CountriesId;
+            }
+
+            var byNormalizedTooltipName = _countryTooltipStats.FirstOrDefault(country =>
+                string.Equals(NormalizeCountryName(country.CountryName), normalizedLookupName, StringComparison.Ordinal));
+            if (byNormalizedTooltipName != null)
+            {
+                return byNormalizedTooltipName.CountryId;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeCountryCode(string? isoCode2)
+    {
+        var normalized = (isoCode2 ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized;
+    }
+
+    private static string NormalizeCountryName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var normalized = value.Trim().ToLowerInvariant().Normalize(System.Text.NormalizationForm.FormD);
+        var builder = new System.Text.StringBuilder(normalized.Length);
+        foreach (var character in normalized)
+        {
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(character) == System.Globalization.UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            builder.Append(char.IsLetterOrDigit(character) ? character : ' ');
+        }
+
+        var compact = string.Join(' ', builder.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        return compact;
+    }
+
+    public async Task AddBuildingToMap(Guid buildingId, double lat, double lng)
+    {
+        if (_mapReference == null) return;
+
+        var existing = _buildingPoints.Features.FirstOrDefault(f => f.Properties.ContainsKey("id") && (Guid)f.Properties["id"] == buildingId);
+        if (existing != null)
+        {
+            existing.Geometry.Coordinates = new[] { lng, lat };
+        }
+        else
+        {
+            _buildingPoints.Features.Add(new GeoJsonPoint
+            {
+                Geometry = new GeoJsonGeometry
+                {
+                    Type = "Point",
+                    Coordinates = new[] { lng, lat }
+                },
+                Properties = new Dictionary<string, object>
+                {
+                    { "id", buildingId },
+                    { "playerAvatar", AppState.MyPlayer?.PlayerAvatar ?? string.Empty },
+                    { "code", "player" }
+                }
+            });
+        }
+
+        var interop = new MapInteropService(JsRuntime);
+        await interop.AddPointsLayer(_mapReference, _buildingPoints);
+    }
+
+    private async Task UpdateMyPlayerPointAsync()
+    {
+        if (_mapReference == null || AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        var player = AppState.MyPlayer;
+        var existing = _buildingPoints.Features.FirstOrDefault(f => f.Properties.ContainsKey("id") && (Guid)f.Properties["id"] == player.PlayersId);
+        if (existing != null)
+        {
+            existing.Properties["playerAvatar"] = player.PlayerAvatar ?? string.Empty;
+        }
+        else
+        {
+            _buildingPoints.Features.Add(new GeoJsonPoint
+            {
+                Geometry = new GeoJsonGeometry
+                {
+                    Type = "Point",
+                    Coordinates = new[] { (double)player.LocationX, (double)player.LocationY }
+                },
+                Properties = new Dictionary<string, object>
+                {
+                    { "id", player.PlayersId },
+                    { "playerAvatar", player.PlayerAvatar ?? string.Empty },
+                    { "code", "player" },
+                    { "isMine", true },
+                    { "premiumShieldEnabled", player.ShieldValidTill is not null && player.ShieldValidTill.Value > DateTime.UtcNow }
+                }
+            });
+        }
+
+        var interop = new MapInteropService(JsRuntime);
+        await interop.AddPointsLayer(_mapReference, _buildingPoints);
+    }
+
+    private async Task LoadActiveTransportsAsync()
+    {
+        try
+        {
+            _activeTransports = await PlayerTradeService.GetActiveTransportsForMapAsync();
+            _activeMilitaryTransports = await MilitaryTransportService.GetActivePlayerMilitaryTransportsForMapAsync();
+            _activeSieges = await PlayerTradeService.GetActiveSiegesForMapAsync();
+            _lastTransportRefreshUtc = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["layout.map.error.loadActiveTransportsLogPrefix"]);
+        }
+    }
+
+    private void StartTransportUpdateLoop()
+    {
+        _transportUpdateCts?.Cancel();
+        _transportUpdateCts = new CancellationTokenSource();
+        _ = RunTransportUpdateLoop(_transportUpdateCts.Token);
+    }
+
+    private async Task RunTransportUpdateLoop(CancellationToken token)
+    {
+        var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(token))
+            {
+                await UpdateTransportsLayerAsync();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Serilog.Log.Debug("World map transport update loop cancelled.");
+        }
+        finally
+        {
+            timer.Dispose();
+        }
+    }
+
+    private async Task UpdateTransportsLayerAsync()
+    {
+        if (_mapReference == null) return;
+
+        if (DateTime.UtcNow - _lastMyPlayerRefreshUtc >= MyPlayerRefreshInterval)
+        {
+            await RefreshMyPlayerStateAsync();
+        }
+
+        if (DateTime.UtcNow - _lastTransportRefreshUtc >= TransportRefreshInterval)
+        {
+            await LoadActiveTransportsAsync();
+        }
+
+        if (DateTime.UtcNow - _lastWarRefreshUtc >= WarRefreshInterval)
+        {
+            await RefreshWarOverlayAsync();
+        }
+
+        if (DateTime.UtcNow - _lastCountryTooltipRefreshUtc >= CountryTooltipRefreshInterval)
+        {
+            await RefreshCountryTooltipDataAsync();
+        }
+
+        if (DateTime.UtcNow - _lastPlayerTooltipRefreshUtc >= PlayerTooltipRefreshInterval)
+        {
+            await RefreshPlayerTooltipDataAsync();
+        }
+
+        if (DateTime.UtcNow - _lastPlayerPointsRefreshUtc >= PlayerPointsRefreshInterval)
+        {
+            await RefreshPlayerPointsAsync();
+        }
+
+        var interop = new MapInteropService(JsRuntime);
+        await interop.UpdateAnimatedTransports(_mapReference, BuildTransportRenderData());
+        await interop.UpdateAnimatedSieges(_mapReference, BuildSiegeRenderData());
+    }
+
+    private async Task RefreshMyPlayerStateAsync(bool force = false)
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        if (!force && DateTime.UtcNow - _lastMyPlayerRefreshUtc < MyPlayerRefreshInterval)
+        {
+            return;
+        }
+
+        try
+        {
+            var refreshedPlayer = await PlayersService.GetPlayerForTab(AppState.MyPlayer.PlayersId, PlayerOverviewTabEnum.Overview);
+            if (refreshedPlayer != null)
+            {
+                var currentPlayer = AppState.MyPlayer;
+                var hasMeaningfulChange =
+                    currentPlayer.CountriesId != refreshedPlayer.CountriesId
+                    || currentPlayer.LocationX != refreshedPlayer.LocationX
+                    || currentPlayer.LocationY != refreshedPlayer.LocationY
+                    || !string.Equals(currentPlayer.PlayerAvatar ?? string.Empty, refreshedPlayer.PlayerAvatar ?? string.Empty, StringComparison.Ordinal)
+                    || !string.Equals(currentPlayer.Name ?? string.Empty, refreshedPlayer.Name ?? string.Empty, StringComparison.Ordinal);
+
+                if (hasMeaningfulChange)
+                {
+                    AppState.SetMyPlayer(refreshedPlayer);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["layout.map.error.loadPlayersLogPrefix"]);
+        }
+
+        _lastMyPlayerRefreshUtc = DateTime.UtcNow;
+    }
+
+    private async Task RefreshPlayerPointsAsync(bool force = false)
+    {
+        if (_mapReference == null)
+        {
+            return;
+        }
+
+        if (!force && DateTime.UtcNow - _lastPlayerPointsRefreshUtc < PlayerPointsRefreshInterval)
+        {
+            return;
+        }
+
+        try
+        {
+            var players = await PlayersService.GetAllPlayers();
+            _buildingPoints.Features.Clear();
+
+            foreach (var player in players)
+            {
+                _buildingPoints.Features.Add(new GeoJsonPoint
+                {
+                    Geometry = new GeoJsonGeometry
+                    {
+                        Type = "Point",
+                        Coordinates = new[] { (double)player.LocationX, (double)player.LocationY }
+                    },
+                Properties = new Dictionary<string, object>
+                {
+                    { "id", player.PlayersId },
+                    { "playerAvatar", player.PlayerAvatar ?? string.Empty },
+                    { "code", "player" },
+                    { "isMine", AppState.MyPlayer?.PlayersId == player.PlayersId },
+                    { "premiumShieldEnabled", player.ShieldValidTill is not null && player.ShieldValidTill.Value > DateTime.UtcNow }
+                }
+            });
+        }
+
+            var interop = new MapInteropService(JsRuntime);
+            await interop.AddPointsLayer(_mapReference, _buildingPoints);
+            _lastPlayerPointsRefreshUtc = DateTime.UtcNow;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["layout.map.error.loadPlayersLogPrefix"]);
+        }
+    }
+
+    private async Task RefreshWarOverlayAsync()
+    {
+        if (_mapReference == null)
+        {
+            return;
+        }
+
+        if (AppState.MyPlayer == null)
+        {
+            _ownWarCountryIds = [];
+            _enemyWarCountryIds = [];
+        }
+        else
+        {
+            await LoadWarCountriesAsync();
+        }
+
+        var interop = new MapInteropService(JsRuntime);
+        await interop.SetCountryStyles(_mapReference, _countryStyles ?? []);
+        await interop.SetWarCountries(_mapReference, _ownWarCountryIds, _enemyWarCountryIds);
+        _lastWarRefreshUtc = DateTime.UtcNow;
+    }
+
+    private async Task RefreshCountryTooltipDataAsync(bool force = false)
+    {
+        if (_mapReference == null)
+        {
+            return;
+        }
+
+        if (!force && DateTime.UtcNow - _lastCountryTooltipRefreshUtc < CountryTooltipRefreshInterval)
+        {
+            return;
+        }
+
+        _countryTooltipStats = await CountriesService.GetCountryMapTooltipStatsAsync();
+        var interop = new MapInteropService(JsRuntime);
+        await interop.SetCountryTooltipData(_mapReference, _countryTooltipStats);
+        _lastCountryTooltipRefreshUtc = DateTime.UtcNow;
+    }
+
+    private async Task RefreshPlayerTooltipDataAsync(bool force = false)
+    {
+        if (_mapReference == null)
+        {
+            return;
+        }
+
+        if (!force && DateTime.UtcNow - _lastPlayerTooltipRefreshUtc < PlayerTooltipRefreshInterval)
+        {
+            return;
+        }
+
+        _playerTooltipStats = await PlayersService.GetPlayerMapTooltipStatsAsync();
+        AppState.SetPlayerTooltipStatsCache(_playerTooltipStats);
+        var interop = new MapInteropService(JsRuntime);
+        await interop.SetPlayerTooltipData(_mapReference, _playerTooltipStats);
+        _lastPlayerTooltipRefreshUtc = DateTime.UtcNow;
+    }
+
+    private List<object> BuildTransportRenderData()
+    {
+        var now = DateTime.UtcNow;
+        var data = new List<object>();
+
+        foreach (var transport in _activeTransports)
+        {
+            if (!AppState.MapShowTradeLayer)
+            {
+                continue;
+            }
+
+            if (!string.Equals(transport.Status, PlayerTradeStatus.InTransit.ToDbValue(), StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var totalSeconds = (transport.TransportEndTime - transport.TransportStartTime).TotalSeconds;
+            var elapsedSeconds = (now - transport.TransportStartTime).TotalSeconds;
+            var progress = totalSeconds <= 0 ? 1 : Math.Clamp(elapsedSeconds / totalSeconds, 0, 1);
+            var remainingSeconds = Math.Max(0, (transport.TransportEndTime - now).TotalSeconds);
+            var fromX = (double?)transport.FromPlayers?.LocationX;
+            var fromY = (double?)transport.FromPlayers?.LocationY;
+            var toX = (double?)transport.ToPlayers?.LocationX;
+            var toY = (double?)transport.ToPlayers?.LocationY;
+
+            var currentX = fromX + (toX - fromX) * progress;
+            var currentY = fromY + (toY - fromY) * progress;
+
+            data.Add(new
+            {
+                movementId = transport.PlayerTradesId,
+                movementType = "trade",
+                missionType = "transport",
+                fromPlayerName = transport.FromPlayers?.Name,
+                toPlayerName = transport.ToPlayers?.Name,
+                status = transport.Status,
+                startTimeUtc = transport.TransportStartTime,
+                endTimeUtc = transport.TransportEndTime,
+                totalSeconds,
+                elapsedSeconds = Math.Max(0, elapsedSeconds),
+                remainingSeconds,
+                progressPercent = Math.Round(progress * 100, 1),
+                fromX = transport.FromPlayers?.LocationX,
+                fromY = transport.FromPlayers?.LocationY,
+                toX = transport.ToPlayers?.LocationX,
+                toY = transport.ToPlayers?.LocationY,
+                currentX = (decimal?)currentX,
+                currentY = (decimal?)currentY
+            });
+        }
+
+        foreach (var transport in _activeMilitaryTransports)
+        {
+            if (transport.Status != PlayerTransportStatus.InProgress.ToDbValue())
+            {
+                continue;
+            }
+
+            var normalizedMissionType = transport.MissionType?.Trim();
+            var shouldRenderMilitaryTransport =
+                normalizedMissionType switch
+                {
+                    nameof(PlayerMilitaryTransportMissionType.Siege) => AppState.MapShowSiegeLayer,
+                    nameof(PlayerMilitaryTransportMissionType.Attack) => AppState.MapShowAttackLayer,
+                    nameof(PlayerMilitaryTransportMissionType.Aid) => AppState.MapShowAttackLayer,
+                    _ => AppState.MapShowAttackLayer
+                };
+
+            if (!shouldRenderMilitaryTransport)
+            {
+                continue;
+            }
+
+            var totalSeconds = (transport.EndTime - transport.StartTime).TotalSeconds;
+            var elapsedSeconds = (now - transport.StartTime).TotalSeconds;
+            var progress = totalSeconds <= 0 ? 1 : Math.Clamp(elapsedSeconds / totalSeconds, 0, 1);
+            var remainingSeconds = Math.Max(0, (transport.EndTime - now).TotalSeconds);
+            var unitEntries = transport.PlayerMilitaryTransportUnits
+                .Where(u => u.Quantity > 0)
+                .Select(u => new
+                {
+                    code = u.MilitaryUnitsCode,
+                    level = u.Level,
+                    quantity = u.Quantity
+                })
+                .ToList();
+            var totalUnitQuantity = unitEntries.Sum(u => u.quantity);
+            var totalPower = unitEntries.Sum(u => Math.Max(0, u.level) * Math.Max(0, u.quantity));
+            var strongestUnitCode = unitEntries
+                .OrderByDescending(u => MilitaryUnitEngine.MilitaryUnitsAllData.FirstOrDefault(x => string.Equals(x.Code.ToString(), u.code, StringComparison.OrdinalIgnoreCase))?.OffensivePoints ?? 0)
+                .ThenByDescending(u => u.level)
+                .ThenByDescending(u => u.quantity)
+                .Select(u => u.code)
+                .FirstOrDefault();
+            var strongestUnitIconUrl = string.IsNullOrWhiteSpace(strongestUnitCode)
+                ? null
+                : $"/assets/icons/military_units/{strongestUnitCode.Trim()}.png";
+
+            var fromX = (double?)transport.PlayerFrom?.LocationX;
+            var fromY = (double?)transport.PlayerFrom?.LocationY;
+            var toX = (double?)transport.PlayerTo?.LocationX;
+            var toY = (double?)transport.PlayerTo?.LocationY;
+
+            var currentX = fromX + (toX - fromX) * progress;
+            var currentY = fromY + (toY - fromY) * progress;
+
+            data.Add(new
+            {
+                movementId = transport.PlayerMilitaryTransportsId,
+                movementType = "military",
+                missionType = normalizedMissionType,
+                fromPlayerName = transport.PlayerFrom?.Name,
+                toPlayerName = transport.PlayerTo?.Name,
+                status = transport.Status,
+                autoReturnAfterBattle = transport.AutoReturnAfterBattle,
+                createdAtUtc = transport.CreatedAt,
+                startTimeUtc = transport.StartTime,
+                endTimeUtc = transport.EndTime,
+                totalSeconds,
+                elapsedSeconds = Math.Max(0, elapsedSeconds),
+                remainingSeconds,
+                progressPercent = Math.Round(progress * 100, 1),
+                itemCount = unitEntries.Count,
+                totalQuantity = totalUnitQuantity,
+                totalPower,
+                strongestUnitCode,
+                strongestUnitIconUrl,
+                details = string.Join(", ", unitEntries.Select(u => $"L{u.level} x{u.quantity}")),
+                items = unitEntries,
+                fromX = transport.PlayerFrom?.LocationX,
+                fromY = transport.PlayerFrom?.LocationY,
+                toX = transport.PlayerTo?.LocationX,
+                toY = transport.PlayerTo?.LocationY,
+                currentX = (decimal?)currentX,
+                currentY = (decimal?)currentY
+            });
+        }
+
+        return data;
+    }
+
+    private List<object> BuildSiegeRenderData()
+    {
+        return _activeSieges
+            .Where(_ => AppState.MapShowSiegeLayer)
+            .Where(s => s.Status == PlayerSiegesStatus.Active.ToDbValue())
+            .Select(s => new
+            {
+                strongestUnitCode = s.PlayerSiegeUnits
+                    .Where(u => string.Equals(u.Side, Side.Attacker.ToDbValue(), StringComparison.OrdinalIgnoreCase) && u.CurrentQuantity > 0)
+                    .OrderByDescending(u => MilitaryUnitEngine.MilitaryUnitsAllData.FirstOrDefault(x => string.Equals(x.Code.ToString(), u.MilitaryUnitsCode, StringComparison.OrdinalIgnoreCase))?.OffensivePoints ?? 0)
+                    .ThenByDescending(u => u.Level)
+                    .ThenByDescending(u => u.CurrentQuantity)
+                    .Select(u => u.MilitaryUnitsCode)
+                    .FirstOrDefault(),
+                playerSiegesId = s.PlayerSiegesId,
+                playerId = s.PlayerToId,
+                playerName = s.PlayerTo.Name,
+                attackerPlayerName = s.PlayerFrom.Name,
+                x = s.PlayerTo.LocationX,
+                y = s.PlayerTo.LocationY,
+                startedAt = s.StartedAt,
+                endedAt = s.EndedAt,
+                strongestUnitIconUrl = s.PlayerSiegeUnits
+                    .Where(u => string.Equals(u.Side, Side.Attacker.ToDbValue(), StringComparison.OrdinalIgnoreCase) && u.CurrentQuantity > 0)
+                    .OrderByDescending(u => MilitaryUnitEngine.MilitaryUnitsAllData.FirstOrDefault(x => string.Equals(x.Code.ToString(), u.MilitaryUnitsCode, StringComparison.OrdinalIgnoreCase))?.OffensivePoints ?? 0)
+                    .ThenByDescending(u => u.Level)
+                    .ThenByDescending(u => u.CurrentQuantity)
+                    .Select(u => $"/assets/icons/military_units/{u.MilitaryUnitsCode.Trim()}.png")
+                    .FirstOrDefault()
+            })
+            .Cast<object>()
+            .ToList();
+    }
+
+    private object BuildMapLocalization()
+    {
+        var labels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["layout.map.tooltip.activeWars"] = T["layout.map.tooltip.activeWars"],
+            ["layout.map.tooltip.forceDistribution"] = T["layout.map.tooltip.forceDistribution"],
+            ["layout.map.tooltip.noUnits"] = T["layout.map.tooltip.noUnits"],
+            ["layout.map.tooltip.noCargo"] = T["layout.map.tooltip.noCargo"],
+            ["layout.map.tooltip.none"] = T["layout.map.tooltip.none"],
+            ["layout.map.tooltip.cash"] = T["layout.map.tooltip.cash"],
+            ["layout.map.tooltip.badges"] = T["layout.map.tooltip.badges"],
+            ["layout.map.tooltip.countries"] = T["layout.map.tooltip.countries"],
+            ["layout.map.tooltip.treasury"] = T["layout.map.tooltip.treasury"],
+            ["layout.map.tooltip.flightTime"] = T["layout.map.tooltip.flightTime"],
+            ["layout.map.tooltip.elapsedTime"] = T["layout.map.tooltip.elapsedTime"],
+            ["layout.map.tooltip.position"] = T["layout.map.tooltip.position"],
+            ["layout.map.tooltip.originPoint"] = T["layout.map.tooltip.originPoint"],
+            ["layout.map.tooltip.cargoPositions"] = T["layout.map.tooltip.cargoPositions"],
+            ["layout.map.tooltip.totalQuantity"] = T["layout.map.tooltip.totalQuantity"],
+            ["layout.map.tooltip.transportLevel"] = T["layout.map.tooltip.transportLevel"],
+            ["layout.map.tooltip.unitComposition"] = T["layout.map.tooltip.unitComposition"],
+            ["layout.map.tooltip.cargoManifest"] = T["layout.map.tooltip.cargoManifest"],
+            ["layout.map.tooltip.mission.tradeTransport"] = T["layout.map.tooltip.mission.tradeTransport"],
+            ["layout.map.tooltip.mission.siege"] = T["layout.map.tooltip.mission.siege"],
+            ["layout.map.tooltip.mission.aid"] = T["layout.map.tooltip.mission.aid"],
+            ["layout.map.tooltip.mission.return"] = T["layout.map.tooltip.mission.return"],
+            ["layout.map.tooltip.mission.militaryTransport"] = T["layout.map.tooltip.mission.militaryTransport"],
+            ["layout.map.tooltip.createdAt"] = T["layout.map.tooltip.createdAt"],
+            ["layout.map.tooltip.level"] = T["layout.map.tooltip.level"],
+            ["layout.map.tooltip.warRole.attacker"] = T["layout.map.tooltip.warRole.attacker"],
+            ["layout.map.tooltip.warRole.defender"] = T["layout.map.tooltip.warRole.defender"],
+            ["layout.map.tooltip.warScope.default"] = T["layout.map.tooltip.warScope.default"],
+            ["layout.map.tooltip.warScope.country"] = T["layout.map.tooltip.warScope.country"],
+            ["layout.map.tooltip.mapMarker.attack"] = T["layout.map.tooltip.mapMarker.attack"],
+            ["layout.map.tooltip.mapMarker.aid"] = T["layout.map.tooltip.mapMarker.aid"],
+            ["layout.map.tooltip.mapMarker.siege"] = T["layout.map.tooltip.mapMarker.siege"],
+            ["layout.map.tooltip.mapMarker.trade"] = T["layout.map.tooltip.mapMarker.trade"],
+            ["modals.player.detail.country"] = T["modals.player.detail.country"],
+            ["modals.player.detail.faction"] = T["modals.player.detail.faction"],
+            ["modals.player.detail.score"] = T["modals.player.detail.score"],
+            ["modals.player.npcBadge"] = T["modals.player.npcBadge"],
+            ["tabs.common.attack"] = T["tabs.common.attack"],
+            ["tabs.common.defend"] = T["tabs.common.defend"],
+            ["tabs.common.status"] = T["tabs.common.status"],
+            ["tabs.common.target"] = T["tabs.common.target"],
+            ["tabs.common.yes"] = T["tabs.common.yes"],
+            ["tabs.common.no"] = T["tabs.common.no"],
+            ["tabs.common.noActiveWars"] = T["tabs.common.noActiveWars"],
+            ["tabs.country.president"] = T["tabs.country.president"],
+            ["tabs.inventory.products"] = T["tabs.inventory.products"],
+            ["tabs.military.units"] = T["tabs.military.units"],
+            ["tabs.military.power"] = T["tabs.military.power"],
+            ["tabs.military.remaining"] = T["tabs.military.remaining"],
+            ["tabs.military.autoReturn"] = T["tabs.military.autoReturn"],
+            ["tabs.transports.from"] = T["tabs.transports.from"],
+            ["tabs.transports.to"] = T["tabs.transports.to"],
+            ["tabs.transports.transport"] = T["tabs.transports.transport"],
+            ["tabs.country.metric.start"] = T["tabs.country.metric.start"],
+            ["tabs.country.metric.end"] = T["tabs.country.metric.end"],
+            ["tabs.transports.status.inProgress"] = T["tabs.transports.status.inProgress"],
+            ["tabs.transports.status.completed"] = T["tabs.transports.status.completed"],
+            ["tabs.transports.status.cancelled"] = T["tabs.transports.status.cancelled"],
+            ["tabs.transports.status.unknown"] = T["tabs.transports.status.unknown"],
+            ["tabs.military.transportStatus.inProgress"] = T["tabs.military.transportStatus.inProgress"],
+            ["tabs.military.transportStatus.inSiege"] = T["tabs.military.transportStatus.inSiege"],
+            ["tabs.military.transportStatus.cancelled"] = T["tabs.military.transportStatus.cancelled"]
+        };
+
+        foreach (var entry in T.GetTranslationsByPrefix("products.code.", "tabs.military.unit.code."))
+        {
+            labels[entry.Key] = entry.Value;
+        }
+
+        foreach (var entry in T.GetTranslationsByPrefix("parts.badges.label."))
+        {
+            labels[entry.Key] = entry.Value;
+        }
+
+        return new
+        {
+            locale = AppState.SelectedLanguage,
+            labels
+        };
+    }
+}

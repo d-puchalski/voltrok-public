@@ -1,0 +1,66 @@
+html,
+body {
+    scroll-behavior: auto !important;
+}
+
+.glass-panel,
+.glass-btn,
+.glass-popup,
+.glass-sidebar,
+.btn-square,
+.btn-glass,
+.btn-primary,
+.btn-secondary,
+.btn-outline-primary,
+.btn-outline-light,
+.btn-outline-danger,
+.btn-outline-warning,
+.btn-outline-success,
+.btn-apply,
+.modal-content,
+.medieval-auth,
+.product-card-large,
+.slot-item-full,
+.building-card-large,
+.avatar-option,
+.avatar-preview-large,
+.building-image,
+.detail-row,
+.preview-panel,
+.stat-item,
+.location-info,
+.management-tab,
+.wizard-step,
+.progress-bar,
+.top-bar {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+
+.btn-square:hover,
+.btn-glass:hover,
+.product-card-large:hover,
+.building-card-large:hover,
+.avatar-option:hover,
+.management-tab:hover,
+.btn-primary:hover,
+.btn-secondary:hover,
+.btn-outline-primary:hover,
+.btn-outline-light:hover,
+.btn-outline-danger:hover,
+.btn-outline-warning:hover,
+.btn-outline-success:hover {
+    transform: none !important;
+}
+
+.btn-primary::after,
+.btn-secondary::after,
+.btn-apply::after,
+.btn-square::before,
+.btn-glass::before,
+.management-tab::before {
+    content: none !important;
+}

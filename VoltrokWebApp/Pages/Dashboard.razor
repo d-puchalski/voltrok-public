@@ -1,0 +1,476 @@
+@page "/"
+<PageTitle>@T["dashboard.pageTitle"]</PageTitle>
+
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.JSInterop
+@using Serilog
+@using VoltrokServices.Services
+@using VoltrokServices.Services.Auth
+@using VoltrokServices.Services.Premium
+@using VoltrokServices.Services.Players
+@using VoltrokUtils.Enums
+@using VoltrokWebApp.Components.Auth
+@using VoltrokWebApp.Components.Layout
+@using VoltrokWebApp.Components.Modals
+@using VoltrokWebApp.Components.Parts
+
+@inherits VoltrokWebApp.Components.AppStateComponentBase
+
+@inject NavigationManager Navigation
+@inject PlayersService PlayersService
+@inject AuthService AuthService
+@inject PremiumService PremiumService
+@inject AppState AppState
+@inject IJSRuntime JsRuntime
+
+@if (_themeLoaded && _languageLoaded)
+{
+
+    <div class="app-wrapper @(AppState.IsChatOpen ? "chat-sidebar-open" : "") @AppState.SelectedTheme">
+        <TopBar />
+
+        <div class="ui-overlay">
+            <div class="map-container">
+                <WorldMap />
+            </div>
+
+            <LandingIntroModal IsOpen="_showLandingIntro"
+                               OnDismiss="HandleLandingDismissAsync"
+                               OnLogin="HandleLandingLoginAsync"
+                               OnRegister="HandleLandingRegisterAsync" />
+            <OnboardingModal IsOpen="_showOnboarding"
+                             OnDismiss="HandleOnboardingDismissAsync"
+                             OnCompleted="HandleOnboardingCompletedAsync" />
+            <RankingModal />
+            <CountryManagementModal />
+            <TradeModal />
+            <PremiumModal />
+            <NeedsCard />
+            <PlayerOverviewModal />
+            <MilitaryActionModal />
+            <ForeignPlayerTooltip />
+            <CountryMapTooltip />
+            <AuthModal />
+
+            @if (_showMobileMapNotice)
+            {
+                <div class="mobile-map-notice-backdrop" @onclick="CloseMobileMapNoticeAsync"></div>
+                <div class="mobile-map-notice" role="dialog" aria-modal="true" aria-labelledby="mobile-map-notice-title">
+                    <div class="mobile-map-notice-badge">@T["dashboard.mobileNotice.badge"]</div>
+                    <h2 id="mobile-map-notice-title">@T["dashboard.mobileNotice.title"]</h2>
+                    <p>@T["dashboard.mobileNotice.description"]</p>
+                    <p class="mobile-map-notice-note">@T["dashboard.mobileNotice.note"]</p>
+                    <button type="button" class="mobile-map-notice-button" @onclick="CloseMobileMapNoticeAsync">
+                        @T["dashboard.mobileNotice.cta"]
+                    </button>
+                </div>
+            }
+
+        </div>
+        @if (AppState.IsChatOpen)
+        {
+            <div class="chat-sidebar-container open">
+                <ChatWindow />
+            </div>
+        }
+    
+    </div>
+}
+
+@code {
+
+    private bool _themeLoaded;
+    private bool _languageLoaded;
+    private bool _showLandingIntro;
+    private bool _showOnboarding;
+    private bool _pendingOnboardingAfterLandingIntro;
+    private long _handledOnboardingOpenRequestId;
+    private bool _showMobileMapNotice;
+    private bool _handledPremiumCheckoutReturn;
+    private const string DefaultTheme = "theme-crown";
+    private const string LandingIntroSeenStorageKey = "voltrok-landing-intro-seen";
+    private const string OnboardingSeenStorageKey = "voltrok-onboarding-seen";
+    private const string MobileMapNoticeSeenStorageKey = "mobile_map_notice_seen";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        if (_themeLoaded && _languageLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!_themeLoaded)
+            {
+                var storedTheme = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", "selected-theme") ?? DefaultTheme;
+                AppState.SetTheme(storedTheme);
+                _themeLoaded = true;
+            }
+
+            if (!_languageLoaded)
+            {
+                var storedLanguage = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", "selected-language");
+                var browserLanguage = await JsRuntime.InvokeAsync<string>("eval", "navigator.language");
+                var languageCode = storedLanguage ?? browserLanguage;
+                T.SetLanguage(languageCode);
+                AppState.SetLanguage(languageCode);
+                _languageLoaded = true;
+            }
+
+            if (_themeLoaded || _languageLoaded)
+            {
+                StateHasChanged();
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable during prerender.");
+            // JS interop unavailable during prerender; retry on next render.
+        }
+
+        var currentUri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var currentQuery = QueryHelpers.ParseQuery(currentUri.Query);
+
+        if (TryGetQueryValue(currentQuery, "showRegister", out _) || TryGetQueryValue(currentQuery, "googleRegisterToken", out _))
+        {
+            AppState.OpenModal(ModalTypesEnum.Register);
+        }
+        else if (TryGetQueryValue(currentQuery, "showPremium", out _) || TryGetQueryValue(currentQuery, "premiumResult", out _))
+        {
+            AppState.OpenModal(ModalTypesEnum.Premium);
+        }
+        else if (TryGetQueryValue(currentQuery, "showLogin", out _) || TryGetQueryValue(currentQuery, "authError", out _))
+        {
+            AppState.OpenModal(ModalTypesEnum.Login);
+        }
+
+        var token = await AuthService.GetTokenAsync();
+        var hasToken = !string.IsNullOrEmpty(token);
+
+        if (hasToken)
+        {
+            try
+            {
+                if (token != null)
+                {
+                    var player = await PlayersService.GetPlayerForTab(Guid.Parse(token), PlayerOverviewTabEnum.Overview);
+                    if (player != null)
+                    {
+                        AppState.SetMyPlayer(player);
+                        await HandlePremiumCheckoutReturnAsync(currentQuery, player.PlayersId);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "{LogPrefix}", T["dashboard.error.prefetchPlayerLogPrefix"]);
+            }
+        }
+
+        await InitializeLandingIntroAsync(currentQuery);
+        await InitializeOnboardingAsync(currentQuery);
+
+        if (!_showLandingIntro)
+        {
+            await InitializeMobileMapNoticeAsync(currentQuery);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+    }
+
+    private async Task InitializeLandingIntroAsync(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        if (HasBlockingQueryModal(query))
+        {
+            return;
+        }
+
+        try
+        {
+            var seenLandingIntro = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", LandingIntroSeenStorageKey);
+            if (string.Equals(seenLandingIntro, "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _showLandingIntro = true;
+            StateHasChanged();
+            await JsRuntime.InvokeVoidAsync("voltrokTracking.trackLandingIntroOpened");
+
+            if (await ShouldShowOnboardingAsync(query))
+            {
+                _pendingOnboardingAfterLandingIntro = true;
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while opening landing intro.");
+        }
+    }
+
+    private async Task InitializeOnboardingAsync(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        if (_showLandingIntro || !await ShouldShowOnboardingAsync(query))
+        {
+            return;
+        }
+
+        AppState.ResetOnboardingClicks();
+        _showOnboarding = true;
+        StateHasChanged();
+    }
+
+    private async Task InitializeMobileMapNoticeAsync(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+    {
+        if (HasBlockingQueryModal(query))
+        {
+            return;
+        }
+
+        try
+        {
+            var seenMobileMapNotice = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", MobileMapNoticeSeenStorageKey);
+            if (string.Equals(seenMobileMapNotice, "1", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var isMobileViewport = await JsRuntime.InvokeAsync<bool>("eval", "window.matchMedia('(max-width: 991.98px)').matches");
+            if (!isMobileViewport)
+            {
+                return;
+            }
+
+            _showMobileMapNotice = true;
+            StateHasChanged();
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while opening mobile map notice.");
+        }
+    }
+
+    private static bool HasBlockingQueryModal(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query)
+        => query.ContainsKey("showRegister")
+           || query.ContainsKey("googleRegisterToken")
+           || query.ContainsKey("googleLoginToken")
+           || query.ContainsKey("showPremium")
+           || query.ContainsKey("premiumResult")
+           || query.ContainsKey("showLogin")
+           || query.ContainsKey("authError");
+
+    private async Task HandleLandingDismissAsync()
+    {
+        await CloseLandingIntroAsync("dismiss");
+    }
+
+    private async Task HandleLandingLoginAsync()
+    {
+        await CloseLandingIntroAsync("login");
+        AppState.OpenModal(ModalTypesEnum.Login);
+    }
+
+    private async Task HandleLandingRegisterAsync()
+    {
+        await CloseLandingIntroAsync("register");
+        AppState.OpenModal(ModalTypesEnum.Register);
+    }
+
+    private async Task CloseLandingIntroAsync(string action)
+    {
+        _showLandingIntro = false;
+        StateHasChanged();
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("localStorage.setItem", LandingIntroSeenStorageKey, "1");
+            await JsRuntime.InvokeVoidAsync("voltrokTracking.trackLandingIntroDismissed", action);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while closing landing intro.");
+        }
+
+        if (_pendingOnboardingAfterLandingIntro)
+        {
+            _pendingOnboardingAfterLandingIntro = false;
+            await OpenOnboardingAsync(forceShow: true);
+        }
+    }
+
+    private async Task HandleOnboardingDismissAsync()
+    {
+        await CloseOnboardingAsync(markAsSeen: true);
+    }
+
+    private async Task HandleOnboardingCompletedAsync()
+    {
+        await CloseOnboardingAsync(markAsSeen: true);
+    }
+
+    private async Task OpenOnboardingAsync(bool forceShow = false)
+    {
+        if (_showOnboarding)
+        {
+            return;
+        }
+
+        if (forceShow || await ShouldShowOnboardingAsync(null))
+        {
+            AppState.ResetOnboardingClicks();
+            _showOnboarding = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CloseOnboardingAsync(bool markAsSeen)
+    {
+        _showOnboarding = false;
+        StateHasChanged();
+
+        try
+        {
+            if (markAsSeen)
+            {
+                await JsRuntime.InvokeVoidAsync("localStorage.setItem", OnboardingSeenStorageKey, "1");
+                await JsRuntime.InvokeVoidAsync("voltrokTracking.trackOnboardingCompleted");
+            }
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while closing onboarding.");
+        }
+
+        AppState.SetOnboardingTargets();
+    }
+
+    private async Task<bool> ShouldShowOnboardingAsync(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues>? query)
+    {
+        if (AppState.MyPlayer?.PlayersId == null || AppState.MyPlayer.PlayersId == Guid.Empty)
+        {
+            return false;
+        }
+
+        if (query is not null && HasBlockingQueryModal(query))
+        {
+            return false;
+        }
+
+        try
+        {
+            var seenOnboarding = await JsRuntime.InvokeAsync<string?>("localStorage.getItem", OnboardingSeenStorageKey);
+            return !string.Equals(seenOnboarding, "1", StringComparison.Ordinal);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while checking onboarding state.");
+            return false;
+        }
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        if (_handledOnboardingOpenRequestId != AppState.OnboardingOpenRequestId)
+        {
+            _handledOnboardingOpenRequestId = AppState.OnboardingOpenRequestId;
+
+            if (_showLandingIntro)
+            {
+                _pendingOnboardingAfterLandingIntro = true;
+            }
+            else
+            {
+                await OpenOnboardingAsync(forceShow: true);
+            }
+        }
+
+        if (!_showLandingIntro
+            && !_showOnboarding
+            && AppState.ActiveModal == ModalTypesEnum.None
+            && await ShouldShowOnboardingAsync(null))
+        {
+            _showOnboarding = true;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CloseMobileMapNoticeAsync()
+    {
+        _showMobileMapNotice = false;
+        StateHasChanged();
+
+        try
+        {
+            await JsRuntime.InvokeVoidAsync("localStorage.setItem", MobileMapNoticeSeenStorageKey, "1");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Serilog.Log.Debug(ex, "Dashboard JS interop unavailable while closing mobile map notice.");
+        }
+    }
+
+    private static bool TryGetQueryValue(IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query, string key, out string value)
+    {
+        value = string.Empty;
+        if (!query.TryGetValue(key, out var values))
+        {
+            return false;
+        }
+
+        var candidate = values.FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return false;
+        }
+
+        value = candidate;
+        return true;
+    }
+
+    private async Task HandlePremiumCheckoutReturnAsync(
+        IReadOnlyDictionary<string, Microsoft.Extensions.Primitives.StringValues> query,
+        Guid playerId)
+    {
+        if (_handledPremiumCheckoutReturn)
+        {
+            return;
+        }
+
+        if (!TryGetQueryValue(query, "premiumResult", out var premiumResult)
+            || !string.Equals(premiumResult, "success", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!TryGetQueryValue(query, "session_id", out var sessionId))
+        {
+            return;
+        }
+
+        try
+        {
+            await PremiumService.ConfirmCheckoutSessionAsync(playerId, sessionId);
+
+            var refreshedPlayer = await PlayersService.GetPlayerForTab(playerId, PlayerOverviewTabEnum.Overview);
+            if (refreshedPlayer is not null)
+            {
+                AppState.SetMyPlayer(refreshedPlayer);
+            }
+
+            var currentUri = Navigation.ToAbsoluteUri(Navigation.Uri);
+            Navigation.NavigateTo(currentUri.GetLeftPart(UriPartial.Path), replace: true);
+            _handledPremiumCheckoutReturn = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to confirm premium checkout return for player {PlayerId}.", playerId);
+            _handledPremiumCheckoutReturn = false;
+        }
+    }
+
+}

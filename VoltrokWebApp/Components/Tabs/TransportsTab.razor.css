@@ -1,0 +1,45 @@
+.inventory-resource-card {
+    justify-content: flex-start;
+    min-height: 340px !important;
+}
+
+.trade-resource-card .inventory-resource-kicker {
+    max-width: 40%;
+}
+
+.trade-resource-card .inventory-resource-icon-wrap {
+    width: clamp(56px, 6vw, 64px);
+    height: clamp(56px, 6vw, 64px);
+}
+
+.trade-resource-card .inventory-resource-icon {
+    width: clamp(30px, 3.5vw, 64px);
+    max-width: 64px;
+    max-height: 64px;
+}
+
+.inventory-resource-meta-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+}
+
+.inventory-resource-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    color: var(--medieval-text);
+    font-size: 0.92rem;
+}
+
+.inventory-resource-meta-row span {
+    color: var(--medieval-muted);
+}
+
+.inventory-resource-meta-row strong {
+    color: var(--medieval-text);
+    font-weight: 700;
+    text-align: right;
+}

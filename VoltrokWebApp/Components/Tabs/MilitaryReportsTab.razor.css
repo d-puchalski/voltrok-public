@@ -1,0 +1,540 @@
+.military-reports-section-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.military-reports-section-subtitle {
+    color: var(--medieval-muted);
+    font-size: 0.82rem;
+}
+
+.military-reports-bootstrap-grid > .col {
+    display: flex;
+}
+
+.military-reports-card {
+    width: 100% !important;
+    flex: 1 1 auto;
+    min-height: 360px !important;
+    justify-content: flex-start;
+}
+
+.military-reports-card-compact {
+    min-height: 0 !important;
+    padding: 1rem 1rem 0.95rem !important;
+}
+
+.military-reports-card-top {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    gap: 0.9rem;
+    min-height: clamp(72px, 8vw, 96px);
+}
+
+.military-reports-icon-wrap {
+    border-radius: 24px;
+}
+
+.military-reports-icon-wrap-compact {
+    width: 56px;
+    height: 56px;
+    min-width: 56px;
+}
+
+.military-reports-icon {
+    font-size: clamp(40px, 5vw, 72px);
+    color: var(--medieval-gold);
+}
+
+.military-reports-icon-compact {
+    font-size: 2rem;
+}
+
+.military-reports-kicker {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    justify-self: end;
+    width: fit-content;
+    max-width: 100%;
+    min-height: 2rem;
+    padding: 0.28rem 0.6rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 92%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent);
+    text-align: right;
+    letter-spacing: 0.08em;
+    line-height: 1;
+}
+
+.military-reports-kicker-inline {
+    justify-self: start;
+    margin-bottom: 0.35rem;
+}
+
+.military-reports-title,
+.military-reports-value {
+    text-align: right;
+}
+
+.military-reports-title-left,
+.military-reports-value-caption-left {
+    text-align: left;
+}
+
+.military-reports-value {
+    font-size: 2rem;
+}
+
+.military-reports-value-text {
+    font-size: 1.3rem;
+    line-height: 1.2;
+}
+
+.military-battle-result-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+}
+
+.military-battle-result-badge.is-win {
+    color: #9ae6b4;
+}
+
+.military-battle-result-badge.is-loss {
+    color: #feb2b2;
+}
+
+.military-battle-result-icon {
+    font-size: 1.15rem;
+    flex: 0 0 auto;
+}
+
+.military-battle-matchup {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.85rem;
+    margin-top: 0.35rem;
+}
+
+.military-battle-sideplate {
+    padding: 0.8rem 0.9rem;
+    border-radius: 18px;
+    min-width: 0;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 72%, transparent);
+    background: color-mix(in srgb, var(--medieval-panel-strong) 86%, transparent);
+}
+
+.military-battle-sideplate-left {
+    text-align: left;
+    border-color: color-mix(in srgb, #63b3ed 24%, var(--medieval-border));
+}
+
+.military-battle-sideplate-right {
+    text-align: right;
+    border-color: color-mix(in srgb, #f56565 24%, var(--medieval-border));
+}
+
+.military-battle-sideplate-label {
+    color: var(--medieval-muted);
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.military-battle-sideplate-name {
+    margin-top: 0.3rem;
+    text-align: inherit;
+    font-size: 1rem;
+    line-height: 1.2;
+    word-break: break-word;
+}
+
+.military-battle-matchup-center {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 124px;
+}
+
+.military-battle-matchup-vs {
+    color: var(--medieval-muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.military-reports-value-caption {
+    margin-top: 0.15rem;
+    color: var(--medieval-muted);
+    font-size: 0.74rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: right;
+}
+
+.military-reports-stats {
+    margin-top: 1rem;
+}
+
+.military-reports-stats .inventory-resource-meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.48rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--medieval-border) 45%, transparent);
+}
+
+.military-reports-stats .inventory-resource-meta-row:last-child {
+    border-bottom: 0;
+}
+
+.military-reports-stats .inventory-resource-meta-row span {
+    color: var(--medieval-muted);
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.military-reports-stats .inventory-resource-meta-row strong {
+    color: var(--medieval-text);
+    font-size: 0.92rem;
+    font-weight: 800;
+    text-align: right;
+}
+
+.military-reports-expand-btn {
+    margin-top: 1rem;
+    min-height: 42px;
+    font-weight: 700;
+}
+
+.military-reports-actions {
+    display: flex;
+    gap: 0.65rem;
+    margin-top: 1rem;
+}
+
+.military-reports-actions .military-reports-expand-btn,
+.military-reports-actions .military-reports-archive-btn {
+    flex: 1 1 0;
+    margin-top: 0;
+}
+
+.military-reports-archive-btn {
+    min-height: 42px;
+    font-weight: 700;
+}
+
+.military-reports-expanded {
+    margin-top: 0.9rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 75%, transparent);
+}
+
+.military-battle-summary-list {
+    margin-bottom: 1rem;
+}
+
+.military-battle-summary-result {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 0.38rem;
+}
+
+.military-battle-summary-result.is-win {
+    color: #9ae6b4 !important;
+}
+
+.military-battle-summary-result.is-loss {
+    color: #feb2b2 !important;
+}
+
+.military-battle-summary-result-icon {
+    font-size: 0.95rem;
+    flex: 0 0 auto;
+}
+
+.military-reports-unit-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.7rem 0.15rem;
+}
+
+.military-reports-unit-row + .military-reports-unit-row {
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 55%, transparent);
+}
+
+.military-reports-unit-main {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.military-reports-unit-icon {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+}
+
+.military-reports-unit-name {
+    font-weight: 700;
+    color: var(--medieval-text);
+}
+
+.military-reports-hero {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.military-reports-hero-main {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    min-width: 0;
+}
+
+.military-reports-hero-metric {
+    min-width: 110px;
+    text-align: right;
+}
+
+.military-reports-unit-meta,
+.military-reports-detail-note {
+    font-size: 0.82rem;
+    color: var(--medieval-muted);
+}
+
+.military-battle-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+    margin-top: 1rem;
+}
+
+.military-battle-side {
+    padding: 0.85rem;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 75%, transparent);
+    background: color-mix(in srgb, var(--medieval-panel) 84%, transparent);
+}
+
+.military-battle-side-head {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+}
+
+.military-battle-side-title {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.military-battle-side-subtitle {
+    margin-top: 0.15rem;
+    color: var(--medieval-muted);
+    font-size: 0.8rem;
+}
+
+.military-battle-side-badge {
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 90%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 75%, transparent);
+    color: var(--medieval-gold);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.military-battle-unit-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 0.65rem;
+    align-items: start;
+}
+
+.military-battle-unit-card {
+    padding: 0.7rem;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, #63b3ed 28%, var(--medieval-border));
+    background: color-mix(in srgb, var(--medieval-surface-elevated) 88%, transparent);
+}
+
+.military-battle-unit-card-enemy {
+    border-color: color-mix(in srgb, #f56565 28%, var(--medieval-border));
+}
+
+.military-battle-unit-top {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 0.55rem;
+}
+
+.military-battle-unit-main {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+}
+
+.military-battle-unit-icon {
+    width: 34px;
+    height: 34px;
+    object-fit: contain;
+}
+
+.military-battle-unit-name {
+    font-weight: 800;
+    color: var(--medieval-text);
+    line-height: 1.1;
+}
+
+.military-battle-unit-level {
+    color: var(--medieval-muted);
+    font-size: 0.72rem;
+}
+
+.military-battle-loss-pill {
+    padding: 0.22rem 0.55rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, #c53030 18%, var(--medieval-panel-strong));
+    border: 1px solid color-mix(in srgb, #f56565 24%, var(--medieval-border));
+    color: #ffd7d7;
+    font-size: 0.72rem;
+    font-weight: 800;
+    flex: 0 0 auto;
+}
+
+.military-battle-unit-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: 0.6rem;
+}
+
+.military-battle-unit-stats div {
+    padding: 0.42rem 0.46rem;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--medieval-panel-strong) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 65%, transparent);
+}
+
+.military-battle-unit-stats span {
+    display: block;
+    color: var(--medieval-muted);
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.military-battle-unit-stats strong {
+    display: block;
+    margin-top: 0.12rem;
+    color: var(--medieval-text);
+    font-size: 0.86rem;
+}
+
+.military-reports-unit-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.2rem;
+    font-size: 0.78rem;
+    color: var(--medieval-gold);
+}
+
+.military-reports-filter {
+    width: 180px;
+}
+
+.military-reports-card-attack {
+    border-color: color-mix(in srgb, #63b3ed 30%, var(--medieval-border)) !important;
+}
+
+.military-reports-card-defense {
+    border-color: color-mix(in srgb, #f56565 35%, var(--medieval-border)) !important;
+}
+
+.military-reports-card-siege {
+    border-color: color-mix(in srgb, #d69e2e 35%, var(--medieval-border)) !important;
+}
+
+.military-reports-card-battle,
+.military-reports-card-history {
+    border-color: color-mix(in srgb, #a0aec0 28%, var(--medieval-border)) !important;
+}
+
+@media (max-width: 768px) {
+    .military-reports-section-head {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .military-reports-filter {
+        width: 100%;
+    }
+
+    .military-reports-hero {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .military-reports-hero-metric {
+        min-width: 0;
+        text-align: left;
+    }
+
+    .military-reports-unit-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .military-reports-unit-stats {
+        align-items: flex-start;
+    }
+
+    .military-battle-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .military-battle-unit-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .military-battle-matchup {
+        grid-template-columns: 1fr;
+    }
+
+    .military-battle-sideplate-left,
+    .military-battle-sideplate-right {
+        text-align: left;
+    }
+
+    .military-battle-matchup-center {
+        min-width: 0;
+    }
+}

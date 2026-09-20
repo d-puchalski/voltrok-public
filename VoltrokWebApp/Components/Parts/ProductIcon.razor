@@ -1,0 +1,21 @@
+@using VoltrokUtils.Models
+@code {
+    [Parameter] public ResourceUnitsEnum ProductCode { get; set; }
+    [Parameter] public int Size { get; set; } = 28;
+    [Parameter] public string CssClass { get; set; } = string.Empty;
+
+    private string IconName => ResolveIcon(ProductCode);
+
+    private static string ResolveIcon(ResourceUnitsEnum productCode)
+    {
+        return productCode switch
+        {
+            ResourceUnitsEnum.Oil => "mdi:barrel",
+            ResourceUnitsEnum.Uranium => "mdi:radioactive",
+            ResourceUnitsEnum.Chips => "solar:cpu-bolt-bold",
+            _ => "game-icons:wooden-crate"
+        };
+    }
+}
+
+<iconify-icon icon="@IconName" width="@Size" class="@CssClass"></iconify-icon>

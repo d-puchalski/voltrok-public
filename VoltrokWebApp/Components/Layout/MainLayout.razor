@@ -1,0 +1,12 @@
+@using VoltrokServices.Services.Translations
+
+@inherits LayoutComponentBase
+@inject TranslationService T
+
+@Body
+
+<div id="blazor-error-ui" data-nosnippet>
+    @T["layout.main.unhandledError"]
+    <a href="." class="reload">@T["layout.main.reload"]</a>
+    <span class="dismiss">@T["layout.main.dismiss"]</span>
+</div>

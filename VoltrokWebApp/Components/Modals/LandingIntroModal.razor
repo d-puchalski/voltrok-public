@@ -1,0 +1,271 @@
+@using VoltrokServices.Services.Seasons
+@using VoltrokWebApp.Components.Parts
+@using VoltrokUtils.Enums
+
+@inherits VoltrokWebApp.Components.AppStateComponentBase
+@inject SeasonService SeasonService
+
+@if (IsOpen)
+{
+    <div class="landing-intro-overlay" @onclick="HandleDismissAsync">
+        <div class="landing-intro-dialog glass-panel" @onclick:stopPropagation="true">
+            <button type="button" class="landing-intro-close" @onclick="HandleDismissAsync" aria-label="@T["landingIntro.ui.dismiss"]">
+                <iconify-icon icon="solar:close-circle-bold" width="24" height="24"></iconify-icon>
+            </button>
+
+            <div class="landing-intro-shell">
+                <section class="landing-intro-hero">
+                    <div class="landing-intro-copy">
+                        <div class="landing-intro-badge">@T["landingIntro.hero.eyebrow"]</div>
+
+                        <h1 class="landing-intro-title pt-3">
+                            <span class="landing-intro-title-line title-primary">@T["landingIntro.hero.line1"]</span>
+                            <span class="landing-intro-title-line title-accent">@T["landingIntro.hero.line2"]</span>
+                            <span class="landing-intro-title-line title-highlight">@T["landingIntro.hero.line3"]</span>
+                        </h1>
+
+                        <p class="landing-intro-description">@T["landingIntro.hero.description"]</p>
+
+                        <div class="landing-intro-season-card">
+                            <div class="landing-intro-season-card-header">
+                                <span class="landing-intro-season-card-eyebrow">@T["landingIntro.season.badge"]</span>
+                                <span class="landing-intro-season-card-value">
+                                    @(_lastSeasonSummary?.SeasonNumber is not null
+                                        ? string.Format(T["landingIntro.season.value"], _lastSeasonSummary.SeasonNumber)
+                                        : T["landingIntro.season.archive"])
+                                </span>
+                            </div>
+
+                            @if (_isSeasonSummaryLoading)
+                            {
+                                <div class="small text-muted">@T["landingIntro.season.loading"]</div>
+                            }
+                            else if (_lastSeasonSummary is not null)
+                            {
+                                <div class="landing-intro-season-grid">
+                                    <div class="landing-intro-season-entry">
+                                        <div class="landing-intro-season-entry-label">@T["landingIntro.season.playerWinner"]</div>
+                                        <div class="landing-intro-season-entry-name">@(_lastSeasonSummary.WinnerPlayerName ?? "-")</div>
+                                        <div class="landing-intro-season-entry-meta">
+                                            @if (!string.IsNullOrWhiteSpace(_lastSeasonSummary.WinnerPlayerCountryName))
+                                            {
+                                                <CountryNameWithFlag Name="@_lastSeasonSummary.WinnerPlayerCountryName"
+                                                                     FlagUrl="@_lastSeasonSummary.WinnerPlayerCountryFlag"
+                                                                     IsoCode2="@_lastSeasonSummary.WinnerPlayerCountryIsoCode2"
+                                                                     Size="16"
+                                                                     Class="landing-intro-season-country" />
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="landing-intro-season-entry">
+                                        <div class="landing-intro-season-entry-label">@T["landingIntro.season.countryWinner"]</div>
+                                        <div class="landing-intro-season-entry-name">@(_lastSeasonSummary.WinnerCountryName ?? "-")</div>
+                                        <div class="landing-intro-season-entry-meta">
+                                            @if (!string.IsNullOrWhiteSpace(_lastSeasonSummary.WinnerCountryName))
+                                            {
+                                                <CountryNameWithFlag Name="@_lastSeasonSummary.WinnerCountryName"
+                                                                     FlagUrl="@_lastSeasonSummary.WinnerCountryFlag"
+                                                                     IsoCode2="@_lastSeasonSummary.WinnerCountryIsoCode2"
+                                                                     Size="16"
+                                                                     Class="landing-intro-season-country" />
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="small text-muted">@T["landingIntro.season.none"]</div>
+                            }
+                        </div>
+
+                        <div class="landing-intro-actions">
+                            <button type="button" class="landing-intro-tertiary" @onclick="HandleDismissAsync">
+                                @T["landingIntro.ui.dismiss"]
+                            </button>
+                        </div>
+                    </div>
+
+                    <aside class="landing-intro-side-panel">
+                        <div class="landing-intro-video-frame">
+                            <video
+                                class="landing-intro-video"
+                                autoplay
+                                muted
+                                loop
+                                playsinline
+                                preload="metadata"
+                                disablepictureinpicture
+                                disableremoteplayback>
+                                <source src="/assets/videos/landing-intro.mp4" type="video/mp4" />
+                            </video>
+                        </div>
+                    </aside>
+                </section>
+
+                <section class="landing-intro-feature-grid">
+                    @foreach (var feature in _featureSections)
+                    {
+                        <article class="landing-intro-feature-card">
+                            <div class="landing-intro-feature-topline">
+                                <span class="landing-intro-feature-number">@feature.Number</span>
+                                <iconify-icon icon="@feature.Icon" width="20" height="20"></iconify-icon>
+                            </div>
+
+                            <h2>@T[$"landingIntro.cards.{feature.Key}.title"]</h2>
+
+                            <ul>
+                                @for (var i = 1; i <= 4; i++)
+                                {
+                                    <li>@T[$"landingIntro.cards.{feature.Key}.item{i}"]</li>
+                                }
+                            </ul>
+                        </article>
+                    }
+                </section>
+
+                <section class="landing-intro-faq">
+                    <div class="landing-intro-faq-label">@T["landingIntro.ui.faqLabel"]</div>
+                    <h2>@T["landingIntro.ui.faqTitle"]</h2>
+
+                    <div class="landing-intro-faq-list">
+                        @for (var i = 1; i <= 4; i++)
+                        {
+                            <details>
+                                <summary>@T[$"landingIntro.faq.item{i}.q"]</summary>
+                                <p>@T[$"landingIntro.faq.item{i}.a"]</p>
+                            </details>
+                        }
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private SeasonService.SeasonArchiveItem? _lastSeasonSummary;
+    private bool _isSeasonSummaryLoading;
+
+    private readonly IReadOnlyList<(string Key, string Number, string Icon)> _featureSections =
+    [
+        ("coop", "01", "solar:users-group-rounded-bold"),
+        ("economy", "02", "solar:case-round-bold"),
+        ("politics", "03", "solar:scales-bold"),
+        ("military", "04", "solar:shield-bold")
+    ];
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+    [Parameter] public EventCallback OnLogin { get; set; }
+    [Parameter] public EventCallback OnRegister { get; set; }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (IsOpen)
+        {
+            await LoadSeasonSummaryAsync();
+        }
+    }
+
+    private async Task LoadSeasonSummaryAsync()
+    {
+        _isSeasonSummaryLoading = true;
+        try
+        {
+            _lastSeasonSummary = await SeasonService.GetLatestCompletedSeasonSummaryAsync();
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "LandingIntroModal failed to load latest season summary.");
+            _lastSeasonSummary = null;
+        }
+        finally
+        {
+            _isSeasonSummaryLoading = false;
+        }
+    }
+
+    private Task HandleDismissAsync() => OnDismiss.InvokeAsync();
+}
+
+<style>
+    .landing-intro-season-card {
+        margin-top: 1rem;
+        padding: 1rem;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+            radial-gradient(circle at top right, rgba(240, 198, 116, 0.14), transparent 35%),
+            rgba(10, 15, 22, 0.72);
+        display: flex;
+        flex-direction: column;
+        gap: 0.85rem;
+    }
+
+    .landing-intro-season-card-header {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .landing-intro-season-card-eyebrow {
+        color: rgba(240, 198, 116, 0.9);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+    }
+
+    .landing-intro-season-card-value {
+        color: #fff;
+        font-weight: 800;
+    }
+
+    .landing-intro-season-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .landing-intro-season-entry {
+        padding: 0.8rem;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .landing-intro-season-entry-label {
+        color: rgba(240, 198, 116, 0.82);
+        font-size: 0.68rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }
+
+    .landing-intro-season-entry-name {
+        color: #fff;
+        font-weight: 800;
+        line-height: 1.25;
+    }
+
+    .landing-intro-season-entry-meta {
+        margin-top: 0.45rem;
+        color: rgba(224, 232, 242, 0.72);
+        font-size: 0.9rem;
+    }
+
+    .landing-intro-season-country {
+        justify-content: flex-start;
+    }
+
+    @@media (max-width: 768px) {
+        .landing-intro-season-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

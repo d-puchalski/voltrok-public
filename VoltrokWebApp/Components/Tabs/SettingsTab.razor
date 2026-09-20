@@ -1,0 +1,587 @@
+@inject PlayersService PlayersService
+@inject CountriesService CountriesService
+@inject IWebHostEnvironment Environment
+@inject PremiumService PremiumService
+@using VoltrokEF
+@using VoltrokWebApp.Components.Parts
+@using VoltrokServices.Services.Countries
+@using VoltrokServices.Services.Players
+@using VoltrokServices.Services.Premium
+
+@inherits AppStateComponentBase
+
+<div class="content-section mb-4">
+    <div class="management-tabs mb-4">
+        <button class="management-tab @(GetSettingsSubTabClass(SettingsSubTab.PlayerName))" @onclick="() => SetSettingsSubTab(SettingsSubTab.PlayerName)">
+            <iconify-icon icon="solar:user-id-bold" class="me-2"></iconify-icon>
+            @T["tabs.settings.playerName"]
+        </button>
+        <button class="management-tab @(GetSettingsSubTabClass(SettingsSubTab.CountryChange))" @onclick="() => SetSettingsSubTab(SettingsSubTab.CountryChange)">
+            <iconify-icon icon="solar:map-point-rotate-bold" class="me-2"></iconify-icon>
+            @T["tabs.settings.countryChangeTab"]
+        </button>
+        <button class="management-tab @(GetSettingsSubTabClass(SettingsSubTab.PlayerAvatar))" @onclick="() => SetSettingsSubTab(SettingsSubTab.PlayerAvatar)">
+            <iconify-icon icon="solar:gallery-circle-bold" class="me-2"></iconify-icon>
+            @T["tabs.settings.playerAvatar"]
+        </button>
+        @if (_hasActiveShieldPackage)
+        {
+            <button class="management-tab @(GetSettingsSubTabClass(SettingsSubTab.PremiumShield))" @onclick="() => SetSettingsSubTab(SettingsSubTab.PremiumShield)">
+                <iconify-icon icon="solar:shield-star-bold" class="me-2"></iconify-icon>
+                @T["tabs.settings.premiumShield"]
+            </button>
+        }
+    </div>
+
+    @if (_settingsSubTab == SettingsSubTab.PlayerName)
+    {
+        <div class="glass-card p-3 mb-3">
+            <div class="d-flex gap-3 align-items-end flex-wrap">
+                <div class="flex-grow-1">
+                    <label class="form-label text-muted">@T["tabs.settings.playerName"]</label>
+                    <input class="form-control bg-dark text-white border-secondary" @bind="_editedName" />
+                </div>
+                <button class="btn btn-primary settings-country-save-btn" @onclick="SaveName" disabled="@(_isSavingName)">
+                    @(_isSavingName ? T["tabs.settings.saving"] : T["tabs.settings.saveName"])
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_nameError))
+            {
+                <div class="alert alert-danger mt-3 py-2 mb-0">@_nameError</div>
+            }
+        </div>
+    }
+
+    @if (_settingsSubTab == SettingsSubTab.PremiumShield && _hasActiveShieldPackage)
+    {
+        <div class="glass-card p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <div class="text-white fw-bold">@T["tabs.settings.premiumShield"]</div>
+                    <span class="badge rounded-pill text-bg-success">
+                        @T["tabs.settings.premiumActive"]
+                    </span>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+
+                    <button class="btn btn-danger shield-action-danger settings-country-save-btn" @onclick="OpenShieldCancelConfirm" disabled="@(_isCancellingShield)">
+                        @T["tabs.settings.cancelShield"]
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 small text-muted">
+                @if (AppState.MyPlayer?.ShieldValidTill is not null)
+                {
+                    <div>@T["tabs.settings.premiumShieldActiveUntil"]: @FormatTimestamp(AppState.MyPlayer.ShieldValidTill.Value)</div>
+                }
+            </div>
+
+            @if (_showShieldCancelConfirm)
+            {
+                <div class="mt-3 p-3 rounded border border-danger-subtle bg-danger bg-opacity-10">
+                    <div class="text-white fw-bold mb-1">@T["tabs.settings.cancelShieldConfirmTitle"]</div>
+                    <div class="small text-muted mb-3">@T["tabs.settings.cancelShieldConfirmBody"]</div>
+                    <div class="small text-warning mb-3">@T["tabs.settings.cancelShieldConfirmWarning"]</div>
+                    <div class="d-flex gap-2 flex-wrap">
+                        <button type="button" class="btn btn-primary shield-action-secondary" @onclick="CloseShieldCancelConfirm" disabled="@(_isCancellingShield)">
+                            @T["tabs.settings.keepShield"]
+                        </button>
+                        <button type="button" class="btn btn-danger shield-action-danger" @onclick="CancelShieldAsync" disabled="@(_isCancellingShield)">
+                            @(_isCancellingShield ? T["tabs.settings.cancelling"] : T["tabs.settings.cancelShield"])
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(_shieldError))
+            {
+                <div class="alert alert-danger mt-3 py-2 mb-0">@_shieldError</div>
+            }
+        </div>
+    }
+
+    @if (_settingsSubTab == SettingsSubTab.CountryChange)
+    {
+        <div class="glass-card p-3 mb-3">
+            <div class="text-white fw-bold mb-2">@T["tabs.settings.country"]</div>
+            <div class="small text-muted mb-2">
+                @(CanChangeCountryOnce ? T["tabs.settings.countryChangeAvailable"] : T["tabs.settings.countryChangeUsed"])
+            </div>
+            <div class="d-flex gap-3 align-items-end flex-wrap">
+                <div class="flex-grow-1">
+                    <label class="form-label text-muted">@T["tabs.settings.selectCountry"]</label>
+                    <div class="settings-country-picker">
+                        <button type="button"
+                                class="form-select bg-dark text-white border-secondary settings-country-picker-trigger"
+                                @onclick="ToggleCountryPicker"
+                                disabled="@(!CanChangeCountryOnce)">
+                            @if (SelectedCountry is not null)
+                            {
+                                <CountryNameWithFlag Name="@SelectedCountry.Name"
+                                                     FlagUrl="@SelectedCountry.Flag"
+                                                     IsoCode2="@SelectedCountry.IsoCode2"
+                                                     Size="18" />
+                            }
+                            else
+                            {
+                                <span>@T["tabs.settings.selectCountry"]</span>
+                            }
+                        </button>
+
+                        @if (_isCountryPickerOpen && CanChangeCountryOnce)
+                        {
+                            <div class="settings-country-picker-menu">
+                                @foreach (var country in _availableCountries.OrderBy(c => c.Name, StringComparer.CurrentCultureIgnoreCase))
+                                {
+                                    <button type="button" class="settings-country-picker-option" @onclick="() => SelectCountry(country.CountriesId)">
+                                        <CountryNameWithFlag Name="@country.Name"
+                                                             FlagUrl="@country.Flag"
+                                                             IsoCode2="@country.IsoCode2"
+                                                             Size="18" />
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+                <button class="btn btn-primary settings-country-save-btn" @onclick="SaveCountryAsync" disabled="@(_isSavingCountry || !CanChangeCountryOnce || !_selectedCountryId.HasValue)">
+                    @(_isSavingCountry ? T["tabs.settings.saving"] : T["tabs.settings.saveCountry"])
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_countryError))
+            {
+                <div class="alert alert-danger mt-3 py-2 mb-0">@_countryError</div>
+            }
+        </div>
+    }
+
+    @if (_settingsSubTab == SettingsSubTab.PlayerAvatar)
+    {
+        <div class="glass-card p-3">
+            <div class="text-white fw-bold mb-2">@T["tabs.settings.playerAvatar"]</div>
+            <div class="small text-muted mb-3">@T["tabs.settings.playerAvatarHint"]</div>
+            <div class="avatar-selector d-flex gap-2 flex-wrap mb-3">
+                @foreach (var avatar in AvailablePlayerAvatars)
+                {
+                    <button type="button" class="avatar-option @(_selectedPlayerAvatar == avatar ? "selected" : "")" @onclick="() => SelectPlayerAvatar(avatar)">
+                        <img class="player-avatar-image" src="@avatar" width="64" height="64" alt="@T["tabs.settings.playerAvatar"]" />
+                    </button>
+                }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_selectedPlayerAvatar))
+            {
+                <div class="d-flex align-items-center gap-3 mb-3 p-2 rounded border border-secondary-subtle">
+                    <img src="@_selectedPlayerAvatar"
+                         alt="@T["tabs.settings.playerAvatar"]"
+                         style="width:72px;height:72px;border-radius:999px;object-fit:cover;box-shadow:0 0 0 1px rgba(148,163,184,.55);" />
+                    <div class="small text-muted">
+                        @if (_pendingPlayerAvatarUpload is not null)
+                        {
+                            <div class="text-white">@_pendingPlayerAvatarUpload.FileName</div>
+                            <div>@T["tabs.settings.avatarPreviewPending"]</div>
+                        }
+                        else
+                        {
+                            <div>@T["tabs.settings.avatarCurrentSelection"]</div>
+                        }
+                    </div>
+                </div>
+            }
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <label for="settings-avatar-upload" class="btn btn-outline-light mb-0 @(!_hasActiveBattlePass ? "disabled" : null)">@T["tabs.settings.uploadFile"]</label>
+                <InputFile id="settings-avatar-upload" OnChange="HandlePlayerAvatarUpload" accept="image/*" class="d-none" />
+                <button class="btn btn-primary" @onclick="SavePlayerAvatar" disabled="@(!_hasPlayerAvatarChanges || _isSavingPlayerAvatar)">
+                    @(_isSavingPlayerAvatar ? T["tabs.settings.saving"] : T["tabs.settings.saveAvatar"])
+                </button>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(_playerAvatarError))
+            {
+                <div class="alert alert-danger mt-3 py-2 mb-0">@_playerAvatarError</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private SettingsSubTab _settingsSubTab = SettingsSubTab.PlayerName;
+    private string _editedName = string.Empty;
+    private string _nameError = string.Empty;
+    private bool _isSavingName;
+    private bool _isTogglingShield;
+    private List<Country> _availableCountries = [];
+    private Guid? _selectedCountryId;
+    private bool _isSavingCountry;
+    private string _countryError = string.Empty;
+    private bool _isCountryPickerOpen;
+    private string _shieldError = string.Empty;
+    private bool _showShieldCancelConfirm;
+    private bool _isCancellingShield;
+
+    private string? _selectedPlayerAvatar;
+    private bool _isSavingPlayerAvatar;
+    private bool _hasPlayerAvatarChanges;
+    private string _playerAvatarError = string.Empty;
+    private UploadedImage? _pendingPlayerAvatarUpload;
+    private readonly List<string> _playerAvatarOptions = Enumerable
+        .Range(0, 72)
+        .Select(index => $"/assets/icons/kings/{index}.png")
+        .ToList();
+    private bool _hasActiveBattlePass;
+    private bool _hasActiveShieldPackage;
+
+    private void SetSettingsSubTab(SettingsSubTab tab) => _settingsSubTab = tab;
+    private string GetSettingsSubTabClass(SettingsSubTab tab) => _settingsSubTab == tab ? "active" : string.Empty;
+
+    private bool CanChangeCountryOnce => AppState.MyPlayer?.HasRelocatedRegion == false;
+    private Country? SelectedCountry => _availableCountries.FirstOrDefault(country => country.CountriesId == _selectedCountryId);
+    private IReadOnlyList<string> AvailablePlayerAvatars => _playerAvatarOptions;
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        var player = AppState.MyPlayer;
+        if (player == null)
+        {
+            return;
+        }
+
+        _editedName = player.Name;
+        _selectedCountryId = player.CountriesId;
+        _isCountryPickerOpen = false;
+        _selectedPlayerAvatar = ResolveAvatar(player.PlayerAvatar);
+        _hasPlayerAvatarChanges = false;
+        _hasActiveBattlePass = await PremiumService.IsPremiumActiveAsync(player.PlayersId);
+        _hasActiveShieldPackage = await PremiumService.IsShieldActiveAsync(player.PlayersId);
+        if (!_hasActiveShieldPackage)
+        {
+            _showShieldCancelConfirm = false;
+            if (_settingsSubTab == SettingsSubTab.PremiumShield)
+            {
+                _settingsSubTab = SettingsSubTab.PlayerName;
+            }
+        }
+        if (_availableCountries.Count == 0)
+        {
+            _availableCountries = await CountriesService.GetAllCountriesAsync();
+        }
+    }
+
+    private void OpenShieldCancelConfirm()
+    {
+        _shieldError = string.Empty;
+        _showShieldCancelConfirm = true;
+    }
+
+    private void CloseShieldCancelConfirm()
+    {
+        _showShieldCancelConfirm = false;
+    }
+
+    private async Task CancelShieldAsync()
+    {
+        if (AppState.MyPlayer == null || !_hasActiveShieldPackage)
+        {
+            return;
+        }
+
+        _isCancellingShield = true;
+        _shieldError = string.Empty;
+
+        try
+        {
+            await PremiumService.CancelShieldAsync(AppState.MyPlayer.PlayersId);
+            AppState.MyPlayer.ShieldValidTill = null;
+            AppState.SetMyPlayer(AppState.MyPlayer);
+            _hasActiveShieldPackage = false;
+            _showShieldCancelConfirm = false;
+            _settingsSubTab = SettingsSubTab.PlayerName;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to cancel shield for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _shieldError = T["tabs.settings.error.cancelShieldFailed"];
+        }
+        finally
+        {
+            _isCancellingShield = false;
+        }
+    }
+
+    private string ResolveAvatar(string? avatar)
+    {
+        if (!string.IsNullOrWhiteSpace(avatar))
+        {
+            return avatar;
+        }
+
+        return AvailablePlayerAvatars[0];
+    }
+
+    private async Task SaveName()
+    {
+        if (AppState.MyPlayer == null || string.IsNullOrWhiteSpace(_editedName))
+        {
+            return;
+        }
+
+        _isSavingName = true;
+        _nameError = string.Empty;
+
+        try
+        {
+            var updated = await PlayersService.UpdatePlayerName(AppState.MyPlayer.PlayersId, _editedName);
+            if (updated != null)
+            {
+                AppState.SetMyPlayer(updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to save player name for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _nameError = T["tabs.settings.error.saveNameFailed"];
+        }
+        finally
+        {
+            _isSavingName = false;
+        }
+    }
+
+    private async Task ToggleShield()
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        if (!_hasActiveBattlePass && AppState.MyPlayer.PremiumShieldEnabled == false)
+        {
+            _shieldError = T["tabs.settings.error.premiumRequiredForShield"];
+            return;
+        }
+
+        _isTogglingShield = true;
+        _shieldError = string.Empty;
+        try
+        {
+            var updated = await PlayersService.SetPremiumShieldStatus(AppState.MyPlayer.PlayersId, !AppState.MyPlayer.PremiumShieldEnabled);
+            if (updated != null)
+            {
+                AppState.SetMyPlayer(updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to toggle premium shield for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _shieldError = T["tabs.settings.error.toggleShieldFailed"];
+        }
+        finally
+        {
+            _isTogglingShield = false;
+        }
+    }
+
+    private async Task SaveCountryAsync()
+    {
+        if (AppState.MyPlayer == null || !_selectedCountryId.HasValue || !CanChangeCountryOnce)
+        {
+            return;
+        }
+
+        _isSavingCountry = true;
+        _countryError = string.Empty;
+        try
+        {
+            var updated = await PlayersService.UpdatePlayerCountryOnce(AppState.MyPlayer.PlayersId, _selectedCountryId.Value);
+            if (updated != null)
+            {
+                AppState.SetMyPlayer(updated);
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to save country change for player {PlayerId} to country {CountryId}.", AppState.MyPlayer?.PlayersId, _selectedCountryId);
+            _countryError = T["tabs.settings.error.saveCountryFailed"];
+        }
+        finally
+        {
+            _isSavingCountry = false;
+        }
+    }
+
+    private void ToggleCountryPicker()
+    {
+        if (!CanChangeCountryOnce)
+        {
+            return;
+        }
+
+        _isCountryPickerOpen = !_isCountryPickerOpen;
+    }
+
+    private void SelectCountry(Guid countryId)
+    {
+        _selectedCountryId = countryId;
+        _isCountryPickerOpen = false;
+    }
+
+    private void SelectPlayerAvatar(string avatar)
+    {
+        _selectedPlayerAvatar = avatar;
+        _pendingPlayerAvatarUpload = null;
+        _hasPlayerAvatarChanges = true;
+    }
+
+    private async Task HandlePlayerAvatarUpload(InputFileChangeEventArgs e)
+    {
+        _playerAvatarError = string.Empty;
+        if (!_hasActiveBattlePass)
+        {
+            _playerAvatarError = T["tabs.settings.error.customAvatarPremiumRequired"];
+            return;
+        }
+
+        try
+        {
+            _pendingPlayerAvatarUpload = await ReadUploadAsync(
+                e.File,
+                T["tabs.settings.playerAvatar"],
+                e.File.Name,
+                T["tabs.settings.error.imageFileRequired"],
+                T["tabs.settings.error.fileTooLarge"]);
+            _selectedPlayerAvatar = _pendingPlayerAvatarUpload.PreviewUrl;
+            _hasPlayerAvatarChanges = true;
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to read avatar upload for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _playerAvatarError = ex is InvalidOperationException
+                ? ex.Message
+                : T["tabs.settings.error.uploadAvatarFailed"];
+        }
+    }
+
+    private static async Task<UploadedImage> ReadUploadAsync(
+        IBrowserFile file,
+        string fieldName,
+        string fileName,
+        string imageFileRequiredMessage,
+        string fileTooLargeMessage)
+    {
+        const long maxSize = 512 * 1024;
+        if (!file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"{fieldName}: {imageFileRequiredMessage}");
+        }
+
+        if (file.Size > maxSize)
+        {
+            throw new InvalidOperationException($"{fieldName}: {fileTooLargeMessage}");
+        }
+
+        var buffer = new byte[file.Size];
+        await using var stream = file.OpenReadStream(maxSize);
+        var totalRead = 0;
+        while (totalRead < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(totalRead, buffer.Length - totalRead));
+            if (read == 0)
+            {
+                break;
+            }
+
+            totalRead += read;
+        }
+
+        return new UploadedImage(
+            buffer[..totalRead],
+            file.ContentType,
+            $"data:{file.ContentType};base64,{Convert.ToBase64String(buffer, 0, totalRead)}",
+            fileName);
+    }
+
+    private async Task SavePlayerAvatar()
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        if (!_hasActiveBattlePass && _pendingPlayerAvatarUpload is not null)
+        {
+            _playerAvatarError = T["tabs.settings.error.customAvatarPremiumRequired"];
+            return;
+        }
+
+        _isSavingPlayerAvatar = true;
+        _playerAvatarError = string.Empty;
+        try
+        {
+            var avatarToSave = await PersistUploadIfNeededAsync(_pendingPlayerAvatarUpload, "avatars");
+            if (avatarToSave != null)
+            {
+                _selectedPlayerAvatar = avatarToSave;
+            }
+
+            var updated = await PlayersService.UpdatePlayerAvatar(AppState.MyPlayer.PlayersId, _selectedPlayerAvatar);
+            if (updated != null)
+            {
+                AppState.SetMyPlayer(updated);
+                _selectedPlayerAvatar = updated.PlayerAvatar;
+                _pendingPlayerAvatarUpload = null;
+                _hasPlayerAvatarChanges = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "SettingsTab failed to save player avatar for player {PlayerId}.", AppState.MyPlayer?.PlayersId);
+            _playerAvatarError = T["tabs.settings.error.saveAvatarFailed"];
+        }
+        finally
+        {
+            _isSavingPlayerAvatar = false;
+        }
+    }
+
+    private async Task<string?> PersistUploadIfNeededAsync(UploadedImage? upload, string folderName)
+    {
+        if (upload == null)
+        {
+            return null;
+        }
+
+        var extension = GetFileExtension(upload.ContentType);
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var relativePath = $"/assets/uploads/{folderName}/{fileName}";
+        var physicalPath = Path.Combine(Environment.WebRootPath, "assets", "uploads", folderName, fileName);
+        var directory = Path.GetDirectoryName(physicalPath);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        await File.WriteAllBytesAsync(physicalPath, upload.Bytes);
+        return relativePath.Replace('\\', '/');
+    }
+
+    private static string GetFileExtension(string contentType) => contentType.ToLowerInvariant() switch
+    {
+        "image/jpeg" => ".jpg",
+        "image/jpg" => ".jpg",
+        "image/png" => ".png",
+        "image/gif" => ".gif",
+        "image/webp" => ".webp",
+        "image/svg+xml" => ".svg",
+        _ => ".img"
+    };
+
+    private sealed record UploadedImage(byte[] Bytes, string ContentType, string PreviewUrl, string FileName);
+    private enum SettingsSubTab
+    {
+        PlayerName,
+        CountryChange,
+        PlayerAvatar,
+        PremiumShield
+    }
+
+    private static string FormatTimestamp(DateTime timestampUtc)
+        => timestampUtc.ToString("yyyy-MM-dd HH:mm 'UTC'");
+}

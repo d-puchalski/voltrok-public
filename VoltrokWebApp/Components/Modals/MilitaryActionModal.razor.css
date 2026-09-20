@@ -1,0 +1,607 @@
+.military-action-dialog {
+    width: min(1280px, calc(100vw - 1.25rem));
+    max-width: 1280px;
+    max-height: calc(100vh - 76px);
+    display: flex;
+    flex-direction: column;
+    border-radius: 28px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 18%, var(--medieval-border));
+    background:
+        radial-gradient(circle at top center, color-mix(in srgb, var(--medieval-gold) 14%, transparent), transparent 30%),
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-card) 97%, black 3%), color-mix(in srgb, var(--medieval-panel-strong) 98%, black 2%));
+    box-shadow: 0 30px 80px var(--medieval-shadow);
+}
+
+.military-action-dialog .dialog-header {
+    padding: 1rem 1.2rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--medieval-border) 76%, transparent);
+    background: color-mix(in srgb, var(--medieval-panel-strong) 88%, transparent);
+}
+
+.military-action-dialog .dialog-body-container {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.military-action-main-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: 0 0 1.25rem !important;
+}
+
+.military-action-header-icon {
+    width: 44px;
+    height: 44px;
+    margin-right: 0.85rem;
+    border-radius: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--medieval-bg);
+    background: linear-gradient(135deg, var(--medieval-gold), var(--medieval-gold-dark));
+    box-shadow: 0 10px 22px color-mix(in srgb, var(--medieval-gold) 22%, transparent);
+}
+
+.military-action-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 380px);
+    gap: 1rem;
+    padding: 1rem;
+    align-items: start;
+}
+
+.military-action-main,
+.military-action-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.military-action-summary {
+    position: sticky;
+    top: 0.85rem;
+}
+
+.military-action-surface {
+    padding: 1rem;
+    border-radius: 24px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 84%, transparent);
+    background:
+        linear-gradient(180deg, color-mix(in srgb, white 3%, transparent), transparent 22%),
+        color-mix(in srgb, var(--medieval-panel-strong) 94%, transparent);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.18);
+}
+
+.military-action-hero {
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--medieval-gold) 14%, transparent), transparent 32%),
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-card) 92%, transparent), color-mix(in srgb, var(--medieval-panel-strong) 96%, transparent));
+}
+
+.military-action-hero-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.military-action-kicker {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--medieval-gold);
+}
+
+.military-action-hero-title {
+    margin-top: 0.35rem;
+    font-size: clamp(1.6rem, 3vw, 2.3rem);
+    font-weight: 900;
+    line-height: 1;
+    color: var(--medieval-text);
+}
+
+.military-action-hero-copy {
+    margin-top: 0.6rem;
+    max-width: 620px;
+    color: color-mix(in srgb, var(--medieval-text) 72%, transparent);
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+
+.military-action-hero-badge {
+    flex: 0 0 auto;
+    padding: 0.45rem 0.8rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--medieval-gold) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 36%, var(--medieval-border));
+    color: var(--medieval-gold);
+    font-size: 0.76rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.military-action-route-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem;
+    margin-top: 1rem;
+}
+
+.military-action-route-card {
+    min-width: 0;
+    padding: 0.5rem 1rem;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    background: color-mix(in srgb, var(--medieval-surface-strong) 76%, transparent);
+}
+
+.military-action-route-card strong,
+.military-action-summary-row strong {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--medieval-text);
+    font-size: 1rem;
+    font-weight: 800;
+    word-break: break-word;
+}
+
+.military-action-hero-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--medieval-muted);
+}
+
+.military-action-unit-section,
+.military-action-summary-card {
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--medieval-gold) 8%, transparent), transparent 38%),
+        color-mix(in srgb, var(--medieval-panel-strong) 95%, transparent);
+}
+
+.military-action-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.9rem;
+}
+
+.military-action-section-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+}
+
+.military-action-section-copy {
+    font-size: 0.82rem;
+    color: var(--medieval-muted);
+}
+
+.military-action-selection-badge {
+    padding: 0.38rem 0.68rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+    background: color-mix(in srgb, var(--medieval-border) 56%, transparent);
+    white-space: nowrap;
+}
+
+.military-action-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem;
+}
+
+.military-action-card {
+    padding: 0.95rem;
+    border-radius: 20px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 88%, transparent);
+    background: color-mix(in srgb, var(--medieval-surface-strong) 74%, transparent);
+}
+
+.military-action-card-main {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.85rem;
+}
+
+.military-action-card-left {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    min-width: 0;
+}
+
+.military-action-card-copy {
+    min-width: 0;
+}
+
+.military-action-card-right {
+    flex: 0 0 auto;
+    text-align: right;
+}
+
+.military-action-icon-wrap {
+    width: 58px;
+    height: 58px;
+    border-radius: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--medieval-card) 84%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 78%, transparent);
+}
+
+.military-action-icon {
+    width: 40px;
+    height: 40px;
+    max-width: 40px;
+    max-height: 40px;
+}
+
+.military-action-title {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--medieval-text);
+}
+
+.military-action-card-subtitle,
+.military-action-selected-label,
+.military-action-input-label {
+    font-size: 0.74rem;
+    color: var(--medieval-muted);
+}
+
+.military-action-selected-value {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--medieval-gold);
+}
+
+.military-action-card-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin: 0.8rem 0;
+}
+
+.military-action-card-stats span {
+    padding: 0.3rem 0.54rem;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    color: var(--medieval-text);
+    background: color-mix(in srgb, var(--medieval-border) 50%, transparent);
+}
+
+.military-action-input-row {
+    display: flex;
+    gap: 0.65rem;
+    align-items: end;
+}
+
+.military-action-input-wrap {
+    flex: 1;
+}
+
+.military-action-quantity-input {
+    min-height: 46px;
+    border-radius: 14px;
+    background: color-mix(in srgb, var(--medieval-card) 90%, transparent) !important;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 82%, transparent) !important;
+    color: var(--medieval-text) !important;
+    box-shadow: none !important;
+}
+
+.military-action-quantity-input::placeholder {
+    color: color-mix(in srgb, var(--medieval-text) 42%, transparent);
+}
+
+.military-action-quantity-input:focus {
+    border-color: color-mix(in srgb, var(--medieval-gold) 62%, var(--medieval-border)) !important;
+    box-shadow: 0 0 0 0.15rem color-mix(in srgb, var(--medieval-gold) 18%, transparent) !important;
+}
+
+.military-action-max-btn,
+.military-action-chip-btn {
+    border-radius: 12px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 80%, transparent);
+    background: color-mix(in srgb, var(--medieval-card) 90%, transparent);
+    color: var(--medieval-text);
+    font-weight: 700;
+}
+
+.military-action-max-btn {
+    min-width: 68px;
+    min-height: 46px;
+}
+
+.military-action-chip-btn {
+    min-height: 36px;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.78rem;
+}
+
+.military-action-max-btn:hover,
+.military-action-chip-btn:hover {
+    border-color: color-mix(in srgb, var(--medieval-gold) 48%, var(--medieval-border));
+    background: var(--medieval-card-hover);
+}
+
+.military-action-card-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+}
+
+.military-action-summary-title {
+    margin-bottom: 0.85rem;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--medieval-gold);
+}
+
+.military-action-summary-hero {
+    margin-bottom: 0.95rem;
+    padding: 0.95rem 1rem;
+    border-radius: 18px;
+    border: 1px solid color-mix(in srgb, var(--medieval-gold) 24%, var(--medieval-border));
+    background:
+        radial-gradient(circle at top right, color-mix(in srgb, var(--medieval-gold) 12%, transparent), transparent 40%),
+        color-mix(in srgb, var(--medieval-surface-strong) 76%, transparent);
+}
+
+.military-action-summary-hero-value {
+    font-size: 1.9rem;
+    font-weight: 900;
+    line-height: 1;
+    color: var(--medieval-text);
+}
+
+.military-action-summary-hero-label {
+    margin-top: 0.35rem;
+    color: var(--medieval-muted);
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.military-action-summary-list,
+.military-action-preview-grid {
+    display: grid;
+    gap: 0.4rem;
+}
+
+.military-action-summary-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: start;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid color-mix(in srgb, var(--medieval-border) 54%, transparent);
+}
+
+.military-action-summary-row:last-child {
+    border-bottom: none;
+}
+
+.military-action-summary-row span {
+    color: var(--medieval-muted);
+    font-size: 0.8rem;
+}
+
+.military-action-summary-row strong {
+    margin-top: 0;
+    text-align: right;
+}
+
+.military-action-preview-item + .military-action-preview-item {
+    margin-top: 0.85rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid color-mix(in srgb, var(--medieval-border) 58%, transparent);
+}
+
+.military-action-preview-head {
+    font-size: 0.9rem;
+    line-height: 1.45;
+    color: var(--medieval-text);
+}
+
+.military-action-preview-meta,
+.military-action-empty,
+.military-action-empty-state {
+    font-size: 0.82rem;
+    color: var(--medieval-muted);
+}
+
+.military-action-empty-state {
+    padding: 1rem;
+    border-radius: 18px;
+    border: 1px dashed color-mix(in srgb, var(--medieval-border) 76%, transparent);
+    background: color-mix(in srgb, var(--medieval-card) 70%, transparent);
+    text-align: center;
+}
+
+.military-action-warning {
+    padding: 0.85rem 1rem;
+    border-radius: 16px;
+    border: 1px solid color-mix(in srgb, #d97706 40%, transparent);
+    background: color-mix(in srgb, #d97706 12%, transparent);
+    color: #f6d18f;
+    font-size: 0.82rem;
+}
+
+.military-action-submit {
+    min-height: 50px;
+    border-radius: 16px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+@media (min-width: 1400px) {
+    .military-action-dialog {
+        width: min(1440px, calc(100vw - 2rem));
+        max-width: 1440px;
+    }
+
+    .military-action-layout {
+        grid-template-columns: minmax(0, 1.75fr) minmax(380px, 460px);
+        gap: 1.25rem;
+        padding: 1.2rem;
+    }
+
+    .military-action-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 1rem;
+    }
+
+    .military-action-surface {
+        padding: 1.15rem;
+    }
+}
+
+@media (min-width: 1700px) {
+    .military-action-dialog {
+        width: min(1560px, calc(100vw - 2.5rem));
+        max-width: 1560px;
+    }
+
+    .military-action-layout {
+        grid-template-columns: minmax(0, 1.9fr) minmax(420px, 500px);
+    }
+
+    .military-action-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 980px) {
+    .military-action-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .military-action-summary {
+        position: static;
+    }
+
+    .military-action-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 720px) {
+    .military-action-dialog {
+        width: 100%;
+        height: calc(100dvh - 0.5rem);
+        max-height: calc(100dvh - 0.5rem);
+        min-height: 0;
+        border-radius: 18px;
+        margin: 0;
+        overflow: hidden;
+    }
+
+    .military-action-dialog .dialog-header {
+        padding: 0.85rem;
+        flex: 0 0 auto;
+    }
+
+    .military-action-dialog .dialog-body-container {
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+
+    .military-action-main-content {
+        padding: 0 0 calc(env(safe-area-inset-bottom, 0px) + 1.5rem) !important;
+    }
+
+    .military-action-layout {
+        padding: 0.75rem;
+        gap: 0.75rem;
+    }
+
+    .military-action-surface {
+        padding: 0.85rem;
+        border-radius: 18px;
+    }
+
+    .military-action-hero-top,
+    .military-action-section-head,
+    .military-action-card-main,
+    .military-action-input-row,
+    .military-action-summary-row {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .military-action-route-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .military-action-card {
+        padding: 0.8rem;
+        border-radius: 18px;
+    }
+
+    .military-action-card-left {
+        gap: 0.7rem;
+    }
+
+    .military-action-icon-wrap {
+        width: 50px;
+        height: 50px;
+        border-radius: 16px;
+    }
+
+    .military-action-icon {
+        width: 34px;
+        height: 34px;
+        max-width: 34px;
+        max-height: 34px;
+    }
+
+    .military-action-title {
+        font-size: 0.92rem;
+    }
+
+    .military-action-card-stats {
+        margin: 0.65rem 0;
+        gap: 0.35rem;
+    }
+
+    .military-action-card-stats span {
+        font-size: 0.68rem;
+    }
+
+    .military-action-card-footer {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .military-action-card-right,
+    .military-action-summary-row strong {
+        text-align: left;
+    }
+
+    .military-action-max-btn {
+        width: 100%;
+    }
+
+    .military-action-submit {
+        min-height: 52px;
+        margin-top: 0.25rem;
+    }
+}

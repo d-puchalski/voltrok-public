@@ -1,0 +1,107 @@
+@using VoltrokServices.Services.Badges
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Models
+
+@inject PlayerBadgeService PlayerBadgeService
+@inject TranslationService T
+
+<span class="player-name-badges-wrap">
+    <span>@PlayerName</span>
+    @foreach (var badge in _badges)
+    {
+        var tier = GetBadgeTier(badge);
+        var label = GetBadgeLabel(badge);
+        var description = GetBadgeDescription(badge);
+        <span class="player-badge-anchor">
+            <span class="player-badge-chip @GetTierClass(tier)" aria-label="@label" title="@label" tabindex="0">
+                <span class="player-badge-icon" aria-hidden="true">@GetTierIcon(tier)</span>
+            </span>
+            <span class="player-badge-tooltip" role="tooltip">
+                <span class="player-badge-tooltip-title">@label</span>
+                <span class="player-badge-tooltip-desc">@description</span>
+            </span>
+        </span>
+    }
+</span>
+
+@code {
+    [Parameter] public Guid? PlayerId { get; set; }
+    [Parameter] public string PlayerName { get; set; } = string.Empty;
+
+    private List<BadgeTypeCodeEnum> _badges = [];
+
+    private static string GetTierClass(BadgeTier tier)
+        => tier switch
+        {
+            BadgeTier.Bronze => "badge-tier-bronze",
+            BadgeTier.Silver => "badge-tier-silver",
+            BadgeTier.Gold => "badge-tier-gold",
+            _ => "badge-tier-bronze"
+        };
+
+    private static string GetTierIcon(BadgeTier tier)
+        => tier switch
+        {
+            BadgeTier.Bronze => "🥉",
+            BadgeTier.Silver => "🥈",
+            BadgeTier.Gold => "🥇",
+            _ => "🥉"
+        };
+
+    private static BadgeTier GetBadgeTier(BadgeTypeCodeEnum badgeCode)
+        => badgeCode switch
+        {
+            BadgeTypeCodeEnum.CountryPresident => BadgeTier.Gold,
+            BadgeTypeCodeEnum.CountryCouncil => BadgeTier.Silver,
+            BadgeTypeCodeEnum.RichTop10 => BadgeTier.Gold,
+            _ when badgeCode.ToString().EndsWith("_year", StringComparison.OrdinalIgnoreCase) => BadgeTier.Gold,
+            _ when badgeCode.ToString().EndsWith("_month", StringComparison.OrdinalIgnoreCase) => BadgeTier.Silver,
+            _ => BadgeTier.Bronze
+        };
+
+    private string GetBadgeDescription(BadgeTypeCodeEnum badgeCode)
+    {
+        var badgeKey = GetBadgeTranslationKey(badgeCode);
+        var translationKey = $"parts.badges.{badgeKey}";
+        var localized = T[translationKey];
+        return string.Equals(localized, translationKey, StringComparison.Ordinal)
+            ? string.Format(T["parts.badges.defaultDescription"], GetBadgeLabel(badgeCode))
+            : localized;
+    }
+
+    private string GetBadgeLabel(BadgeTypeCodeEnum badgeCode)
+    {
+        var badgeKey = GetBadgeTranslationKey(badgeCode);
+        var translationKey = $"parts.badges.label.{badgeKey}";
+        var localized = T[translationKey];
+        return string.Equals(localized, translationKey, StringComparison.Ordinal)
+            ? badgeCode.ToString()
+            : localized;
+    }
+
+    private static string GetBadgeTranslationKey(BadgeTypeCodeEnum badgeCode)
+    {
+        var raw = badgeCode.ToString();
+        return string.IsNullOrWhiteSpace(raw)
+            ? raw
+            : char.ToLowerInvariant(raw[0]) + raw[1..];
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _badges = [];
+        if (!PlayerId.HasValue || PlayerId == Guid.Empty)
+        {
+            return;
+        }
+
+        _badges = await PlayerBadgeService.GetBadgesForPlayersAsync([PlayerId.Value]);
+    }
+
+    private enum BadgeTier
+    {
+        Bronze,
+        Silver,
+        Gold
+    }
+}

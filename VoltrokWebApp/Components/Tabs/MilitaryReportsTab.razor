@@ -1,0 +1,631 @@
+@using VoltrokEF
+@using VoltrokServices.Services.Translations
+@using VoltrokUtils.Engines
+@using VoltrokUtils.Enums
+
+@inject TranslationService T
+
+<div class="content-section">
+    <div class="military-reports-section mb-4">
+        <div class="military-reports-section-head">
+            <div>
+                <h6 class="m-0 text-white">@T["tabs.military.reports.activeConflictsTitle"]</h6>
+                <span class="military-reports-section-subtitle">@T["tabs.military.reports.activeConflictsSubtitle"]</span>
+            </div>
+        </div>
+
+        @if (HasActiveConflicts)
+        {
+            <div class="row row-cols-1 row-cols-md-2 row-cols-xxl-3 g-3 military-reports-bootstrap-grid military-reports-bootstrap-grid-conflicts">
+                @foreach (var transport in ActiveOutgoingAttacks)
+                {
+                    <div class="col">
+                        @TransportCard(transport, T["tabs.military.reports.kicker.attack"], "solar:sword-bold", T["tabs.military.reports.caption.powerProjection"], false)
+                    </div>
+                }
+                @foreach (var transport in ActiveIncomingDefenses)
+                {
+                    <div class="col">
+                        @TransportCard(transport, T["tabs.military.reports.kicker.defense"], "solar:shield-warning-bold", T["tabs.military.reports.caption.enemyWinChance"], true)
+                    </div>
+                }
+                @foreach (var transport in ActiveAidDeployments)
+                {
+                    <div class="col">
+                        @TransportCard(transport, T["tabs.military.reports.kicker.help"], "solar:hand-heart-bold", T["tabs.military.reports.caption.alliedSupport"], false)
+                    </div>
+                }
+                @foreach (var transport in IncomingAidMissions)
+                {
+                    <div class="col">
+                        @TransportCard(transport, T["tabs.military.reports.kicker.help"], "solar:hand-heart-bold", T["tabs.military.reports.caption.incomingSupport"], true)
+                    </div>
+                }
+                @foreach (var transport in ActiveSiegeDeployments)
+                {
+                    <div class="col">
+                        @TransportCard(transport, T["tabs.military.reports.kicker.siege"], "solar:cat-bold", T["tabs.military.reports.caption.siegePressure"], false)
+                    </div>
+                }
+                @foreach (var siege in ActiveDefensiveSieges)
+                {
+                    <div class="col">
+                        @SiegeCard(siege, true)
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="small text-muted">@T["tabs.military.noActiveDeployments"]</div>
+        }
+    </div>
+
+    <div class="military-reports-section mb-4">
+        <div class="military-reports-section-head">
+            <div>
+                <h6 class="m-0 text-white">@T["tabs.military.recentBattles"]</h6>
+                <span class="military-reports-section-subtitle">@T["tabs.military.reports.recentBattlesSubtitle"]</span>
+            </div>
+            <select class="form-select form-select-sm bg-dark border-white-10 text-white military-reports-filter" value="@BattleFilter" @onchange="BattleFilterChanged">
+                <option value="all">@T["tabs.military.reportsFilter.all"]</option>
+                <option value="won">@T["tabs.military.reportsFilter.onlyWon"]</option>
+                <option value="lost">@T["tabs.military.reportsFilter.onlyLost"]</option>
+                <option value="archived">@T["tabs.military.reports.filter.archived"]</option>
+            </select>
+        </div>
+
+        @if (FilteredBattlesList.Count > 0)
+        {
+            @Pager(FilteredBattlesTotalPages > 1, FilteredBattlesPageStartItem, FilteredBattlesPageEndItem, FilteredBattlesList.Count, FirstFilteredBattlesPage, PrevFilteredBattlesPage, NextFilteredBattlesPage, LastFilteredBattlesPage, FilteredBattlesPage, FilteredBattlesTotalPages)
+            <div class="row row-cols-1 row-cols-lg-2 row-cols-xxl-3 g-3">
+                @foreach (var battle in PagedFilteredBattlesList)
+                {
+                    <div class="col">
+                        @BattleCard(battle)
+                    </div>
+                }
+            </div>
+            @Pager(FilteredBattlesTotalPages > 1, FilteredBattlesPageStartItem, FilteredBattlesPageEndItem, FilteredBattlesList.Count, FirstFilteredBattlesPage, PrevFilteredBattlesPage, NextFilteredBattlesPage, LastFilteredBattlesPage, FilteredBattlesPage, FilteredBattlesTotalPages, true)
+        }
+        else
+        {
+            <div class="small text-muted">@T["tabs.military.noBattleReports"]</div>
+        }
+    </div>
+
+    <div class="military-reports-section">
+        <div class="military-reports-section-head">
+            <div>
+                <h6 class="m-0 text-white">@T["tabs.military.reports.helpMissionsTitle"]</h6>
+                <span class="military-reports-section-subtitle">@T["tabs.military.reports.helpMissionsSubtitle"]</span>
+            </div>
+        </div>
+
+        @if (AidHistoryList.Count > 0)
+        {
+            @Pager(AidHistoryTotalPages > 1, AidHistoryPageStartItem, AidHistoryPageEndItem, AidHistoryList.Count, FirstAidHistoryPage, PrevAidHistoryPage, NextAidHistoryPage, LastAidHistoryPage, AidHistoryPage, AidHistoryTotalPages)
+            <div class="row row-cols-1 row-cols-lg-2 row-cols-xxl-3 g-3">
+                @foreach (var transport in PagedAidHistoryList)
+                {
+                    <div class="col">
+                        @AidHistoryCard(transport)
+                    </div>
+                }
+            </div>
+            @Pager(AidHistoryTotalPages > 1, AidHistoryPageStartItem, AidHistoryPageEndItem, AidHistoryList.Count, FirstAidHistoryPage, PrevAidHistoryPage, NextAidHistoryPage, LastAidHistoryPage, AidHistoryPage, AidHistoryTotalPages, true)
+        }
+        else
+        {
+            <div class="small text-muted">@T["tabs.military.reports.noHelpMissions"]</div>
+        }
+    </div>
+
+    <div class="military-reports-section mt-4">
+        <div class="military-reports-section-head">
+            <div>
+                <h6 class="m-0 text-white">@T["tabs.military.siegeHistory"]</h6>
+                <span class="military-reports-section-subtitle">@T["tabs.military.reports.siegeHistorySubtitle"]</span>
+            </div>
+        </div>
+
+        @if (SiegeHistoryList.Count > 0)
+        {
+            @Pager(SiegeHistoryTotalPages > 1, SiegeHistoryPageStartItem, SiegeHistoryPageEndItem, SiegeHistoryList.Count, FirstSiegeHistoryPage, PrevSiegeHistoryPage, NextSiegeHistoryPage, LastSiegeHistoryPage, SiegeHistoryPage, SiegeHistoryTotalPages)
+            <div class="row row-cols-1 row-cols-lg-2 row-cols-xxl-3 g-3">
+                @foreach (var siege in PagedSiegeHistoryList)
+                {
+                    <div class="col">
+                        @SiegeCard(siege, false)
+                    </div>
+                }
+            </div>
+            @Pager(SiegeHistoryTotalPages > 1, SiegeHistoryPageStartItem, SiegeHistoryPageEndItem, SiegeHistoryList.Count, FirstSiegeHistoryPage, PrevSiegeHistoryPage, NextSiegeHistoryPage, LastSiegeHistoryPage, SiegeHistoryPage, SiegeHistoryTotalPages, true)
+        }
+        else
+        {
+            <div class="small text-muted">@T["tabs.military.noSiegeHistory"]</div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter] public required Guid PlayerId { get; set; }
+    [Parameter] public required string BattleFilter { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> ActiveAttackDeploymentsList { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> ActiveAidDeploymentsList { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> IncomingAidList { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> IncomingAttacksList { get; set; }
+    [Parameter] public required IEnumerable<PlayerSiege> ActiveDefensiveSieges { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> AidHistoryList { get; set; }
+    [Parameter] public required int AidHistoryPage { get; set; }
+    [Parameter] public required int AidHistoryTotalPages { get; set; }
+    [Parameter] public required int AidHistoryPageStartItem { get; set; }
+    [Parameter] public required int AidHistoryPageEndItem { get; set; }
+    [Parameter] public required List<PlayerMilitaryTransport> PagedAidHistoryList { get; set; }
+    [Parameter] public required List<PlayerSiege> SiegeHistoryList { get; set; }
+    [Parameter] public required int SiegeHistoryPage { get; set; }
+    [Parameter] public required int SiegeHistoryTotalPages { get; set; }
+    [Parameter] public required int SiegeHistoryPageStartItem { get; set; }
+    [Parameter] public required int SiegeHistoryPageEndItem { get; set; }
+    [Parameter] public required List<PlayerSiege> PagedSiegeHistoryList { get; set; }
+    [Parameter] public required List<PlayerBattleReport> FilteredBattlesList { get; set; }
+    [Parameter] public required int FilteredBattlesPage { get; set; }
+    [Parameter] public required int FilteredBattlesTotalPages { get; set; }
+    [Parameter] public required int FilteredBattlesPageStartItem { get; set; }
+    [Parameter] public required int FilteredBattlesPageEndItem { get; set; }
+    [Parameter] public required List<PlayerBattleReport> PagedFilteredBattlesList { get; set; }
+    [Parameter] public required Func<string?, string> GetUnitLabel { get; set; }
+    [Parameter] public required Func<string?, string> GetSiegeStatusLabel { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, int> GetTransportPower { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, int> GetDefenderPower { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, int> GetAttackerWinChancePercent { get; set; }
+    [Parameter] public required Func<PlayerMilitaryTransport, string> GetTimeRemainingLabel { get; set; }
+    [Parameter] public required Func<string?, string> GetTransportStatusLabel { get; set; }
+    [Parameter] public required Func<PlayerBattleReport, string> GetBattleResultLabel { get; set; }
+    [Parameter] public required Func<PlayerBattleReport, bool, string> GetBattleSideResultLabel { get; set; }
+    [Parameter] public required EventCallback<Guid> ArchiveBattleReport { get; set; }
+    [Parameter] public required EventCallback<Guid> ArchiveSiegeReport { get; set; }
+    [Parameter] public required EventCallback<Guid> ArchiveAidReport { get; set; }
+    [Parameter] public required EventCallback<ChangeEventArgs> BattleFilterChanged { get; set; }
+    [Parameter] public required EventCallback FirstAidHistoryPage { get; set; }
+    [Parameter] public required EventCallback PrevAidHistoryPage { get; set; }
+    [Parameter] public required EventCallback NextAidHistoryPage { get; set; }
+    [Parameter] public required EventCallback LastAidHistoryPage { get; set; }
+    [Parameter] public required EventCallback FirstSiegeHistoryPage { get; set; }
+    [Parameter] public required EventCallback PrevSiegeHistoryPage { get; set; }
+    [Parameter] public required EventCallback NextSiegeHistoryPage { get; set; }
+    [Parameter] public required EventCallback LastSiegeHistoryPage { get; set; }
+    [Parameter] public required EventCallback FirstFilteredBattlesPage { get; set; }
+    [Parameter] public required EventCallback PrevFilteredBattlesPage { get; set; }
+    [Parameter] public required EventCallback NextFilteredBattlesPage { get; set; }
+    [Parameter] public required EventCallback LastFilteredBattlesPage { get; set; }
+
+    private readonly HashSet<string> _expandedCards = [];
+    private IEnumerable<PlayerMilitaryTransport> ActiveOutgoingAttacks => ActiveAttackDeploymentsList.Where(x => !string.Equals(x.Status, PlayerTransportStatus.InSiege.ToDbValue(), StringComparison.OrdinalIgnoreCase)).OrderBy(x => x.EndTime);
+    private IEnumerable<PlayerMilitaryTransport> ActiveIncomingDefenses => IncomingAttacksList.OrderBy(x => x.EndTime);
+    private IEnumerable<PlayerMilitaryTransport> ActiveAidDeployments => ActiveAidDeploymentsList.OrderBy(x => x.EndTime);
+    private IEnumerable<PlayerMilitaryTransport> IncomingAidMissions => IncomingAidList.OrderBy(x => x.EndTime);
+    private IEnumerable<PlayerMilitaryTransport> ActiveSiegeDeployments => ActiveAttackDeploymentsList.Where(x => string.Equals(x.Status, PlayerTransportStatus.InSiege.ToDbValue(), StringComparison.OrdinalIgnoreCase)).OrderBy(x => x.EndTime);
+    private bool HasActiveConflicts => ActiveOutgoingAttacks.Any() || ActiveIncomingDefenses.Any() || ActiveAidDeployments.Any() || IncomingAidMissions.Any() || ActiveSiegeDeployments.Any() || ActiveDefensiveSieges.Any();
+
+    private RenderFragment TransportCard(PlayerMilitaryTransport transport, string kicker, string icon, string caption, bool incoming) => @<div class="building-card-large inventory-resource-card military-reports-card military-reports-card-compact @(incoming ? "military-reports-card-defense" : kicker == PlayerMilitaryTransportMissionType.Siege.ToDbValue() ? "military-reports-card-siege" : "military-reports-card-attack")" @key="transport.PlayerMilitaryTransportUnits">
+        <div class="military-reports-hero">
+            <div class="military-reports-hero-main">
+                <div class="inventory-resource-icon-wrap military-reports-icon-wrap military-reports-icon-wrap-compact"><iconify-icon icon="@icon" class="military-reports-icon military-reports-icon-compact"></iconify-icon></div>
+                <div>
+                    <div class="inventory-resource-kicker military-reports-kicker military-reports-kicker-inline">@kicker</div>
+                    <div class="inventory-resource-title military-reports-title military-reports-title-left">@(incoming ? transport.PlayerFrom?.Name : transport.PlayerTo?.Name)</div>
+                    <div class="military-reports-value-caption military-reports-value-caption-left">@caption</div>
+                </div>
+            </div>
+            <div class="military-reports-hero-metric">
+                <div class="inventory-resource-value military-reports-value">@(incoming ? $"{GetAttackerWinChancePercent(transport)}%" : GetTransportPower(transport).ToString("N0"))</div>
+                <div class="military-reports-value-caption">@(incoming ? T["tabs.military.reports.caption.enemyEdge"] : T["tabs.military.reports.caption.powerProjection"])</div>
+            </div>
+        </div>
+        <div class="inventory-resource-meta-list military-reports-stats">
+            <div class="inventory-resource-meta-row"><span>@T["tabs.common.status"]</span><strong>@GetTransportStatusLabel(transport.Status)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@(incoming ? T["tabs.military.enemyPower"] : T["tabs.military.units"])</span><strong>@(incoming ? GetTransportPower(transport).ToString("N0") : GetTransportTotalUnits(transport).ToString("N0"))</strong></div>
+            <div class="inventory-resource-meta-row"><span>@(incoming ? T["tabs.military.yourDefensePower"] : T["tabs.military.reports.unitStacks"])</span><strong>@(incoming ? GetDefenderPower(transport).ToString("N0") : GetTransportUnitStacks(transport).ToString("N0"))</strong></div>
+            <div class="inventory-resource-meta-row"><span>@(kicker == T["tabs.military.reports.kicker.siege"] ? T["tabs.military.reports.ended"] : incoming ? T["tabs.military.impactIn"] : T["tabs.military.remaining"])</span><strong>@(kicker == T["tabs.military.reports.kicker.siege"] ? transport.EndTime.ToLocalTime().ToString("g") : GetTimeRemainingLabel(transport))</strong></div>
+        </div>
+        <button type="button" class="btn btn-outline-light military-reports-expand-btn" @onclick="() => ToggleExpanded(GetTransportCardKey(transport))">@(IsExpanded(GetTransportCardKey(transport)) ? T["tabs.military.reports.hideUnits"] : T["tabs.military.reports.showUnits"])</button>
+        @if (IsExpanded(GetTransportCardKey(transport)))
+        {
+            <div class="military-reports-expanded">
+                @foreach (var unitEntry in GetTransportUnitDetails(transport))
+                {
+                    <div class="military-reports-unit-row">
+                        <div class="military-reports-unit-main">
+                            <img class="military-reports-unit-icon" src="@GetUnitIconPath(unitEntry.TransportUnit.MilitaryUnitsCode)" alt="@GetUnitLabel(unitEntry.TransportUnit.MilitaryUnitsCode)" />
+                            <div>
+                                <div class="military-reports-unit-name">@GetUnitLabel(unitEntry.TransportUnit.MilitaryUnitsCode)</div>
+                                <div class="military-reports-unit-meta">@string.Format(T["tabs.military.reports.levelQuantity"], unitEntry.TransportUnit.Level, unitEntry.TransportUnit.Quantity)</div>
+                            </div>
+                        </div>
+                        <div class="military-reports-unit-stats">
+                            <span>@string.Format(T["tabs.military.reports.stat.atk"], unitEntry.Unit?.OffensivePoints ?? 0)</span>
+                            <span>@string.Format(T["tabs.military.reports.stat.def"], unitEntry.Unit?.DefensivePoints ?? 0)</span>
+                            @if (unitEntry.Unit?.IsDefensive == true)
+                            {
+                                <span>@GetDefenseCounterLabel(unitEntry.Unit)</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>;
+
+    private RenderFragment BattleCard(PlayerBattleReport battle) => @<div class="building-card-large inventory-resource-card military-reports-card military-reports-card-battle" @key="battle.PlayerBattleReportsId">
+        <div class="inventory-resource-card-top military-reports-card-top">
+            <div class="inventory-resource-icon-wrap military-reports-icon-wrap"><iconify-icon icon="solar:swords-square-bold" class="military-reports-icon"></iconify-icon></div>
+            <div class="inventory-resource-kicker military-reports-kicker">@T["tabs.military.reports.kicker.battleReport"]</div>
+        </div>
+        <div class="military-battle-matchup">
+            <div class="military-battle-sideplate military-battle-sideplate-left">
+                <div class="military-battle-sideplate-label">@T["parts.notifications.detail.attacker"]</div>
+                <div class="inventory-resource-title military-reports-title military-battle-sideplate-name">@GetBattlePlayerLabel(battle.PlayerFrom?.Name)</div>
+            </div>
+            <div class="military-battle-matchup-center">
+                <div class="inventory-resource-value military-reports-value military-reports-value-text military-battle-result-badge @GetBattleResultClass(battle)">
+                    <iconify-icon icon="@GetBattleResultIcon(battle)" class="military-battle-result-icon"></iconify-icon>
+                    <span>@GetBattleResultLabel(battle)</span>
+                </div>
+                <div class="military-battle-matchup-vs">@T["tabs.military.vs"]</div>
+            </div>
+            <div class="military-battle-sideplate military-battle-sideplate-right">
+                <div class="military-battle-sideplate-label">@T["parts.notifications.detail.defender"]</div>
+                <div class="inventory-resource-title military-reports-title military-battle-sideplate-name">@GetBattlePlayerLabel(battle.PlayerTo?.Name)</div>
+            </div>
+        </div>
+        <div class="military-reports-value-caption">@battle.EndedAt.ToLocalTime().ToString("g")</div>
+        <div class="inventory-resource-meta-list military-reports-stats">
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.report.attackPower"]</span><strong>@battle.AttackerPower.ToString("N0")</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.report.defensePower"]</span><strong>@battle.DefenderPower.ToString("N0")</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.losses"]</span><strong>@((battle.AttackerLosses + battle.DefenderLosses).ToString("N0"))</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.lootMoney"]</span><strong>@FormatMoney(battle.LootMoney)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootOil"]</span><strong>@FormatResourceAmount(battle.LootOil)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootUranium"]</span><strong>@FormatResourceAmount(battle.LootUranium)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootChips"]</span><strong>@FormatResourceAmount(battle.LootChips)</strong></div>
+        </div>
+        <div class="military-reports-actions">
+            <button type="button" class="btn btn-outline-light military-reports-expand-btn" @onclick="() => ToggleExpanded(GetBattleCardKey(battle))">@(IsExpanded(GetBattleCardKey(battle)) ? T["tabs.military.reports.hideDetails"] : T["tabs.military.reports.showDetails"])</button>
+            @if (!battle.IsArchived)
+            {
+                <button type="button" class="btn btn-outline-warning military-reports-archive-btn" @onclick="() => ArchiveBattleReport.InvokeAsync(battle.PlayerBattleReportsId)">@T["tabs.military.reports.archive"]</button>
+            }
+        </div>
+        @if (IsExpanded(GetBattleCardKey(battle)))
+        {
+            <div class="military-reports-expanded">
+                <div class="military-battle-detail-grid">
+                    <div class="military-battle-side">
+                        <div class="military-battle-side-head">
+                            <div>
+                                <div class="military-battle-side-title">@GetBattlePerspectiveTitle(battle, true)</div>
+                                <div class="military-battle-side-subtitle">@GetBattlePerspectivePlayerName(battle, true)</div>
+                            </div>
+                            <div class="military-battle-side-badge">@GetBattleSideResultLabel(battle, IsPlayerPerspectiveAttacker(battle))</div>
+                        </div>
+                        @if (GetBattlePerspectiveUnits(battle, true).Any())
+                        {
+                            <div class="military-battle-unit-grid">
+                                @foreach (var unit in GetBattlePerspectiveUnits(battle, true))
+                                {
+                                    <div class="military-battle-unit-card">
+                                        <div class="military-battle-unit-top">
+                                            <div class="military-battle-unit-main">
+                                                <img class="military-battle-unit-icon" src="@GetUnitIconPath(unit.MilitaryUnitsCode)" alt="@GetUnitLabel(unit.MilitaryUnitsCode)" />
+                                                <div>
+                                                    <div class="military-battle-unit-name">@GetUnitLabel(unit.MilitaryUnitsCode)</div>
+                                                    <div class="military-battle-unit-level">@string.Format(T["tabs.military.reports.level"], unit.Level)</div>
+                                                </div>
+                                            </div>
+                                            <div class="military-battle-loss-pill">-@unit.LostQuantity</div>
+                                        </div>
+                                        <div class="military-battle-unit-stats">
+                                            <div><span>@T["tabs.military.reports.start"]</span><strong>@unit.StartingQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.lost"]</span><strong>@unit.LostQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.left"]</span><strong>@unit.RemainingQuantity</strong></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="military-reports-detail-note">@T["tabs.military.reports.snapshotUnavailable"]</div>
+                        }
+                    </div>
+                    <div class="military-battle-side">
+                        <div class="military-battle-side-head">
+                            <div>
+                                <div class="military-battle-side-title">@GetBattlePerspectiveTitle(battle, false)</div>
+                                <div class="military-battle-side-subtitle">@GetBattlePerspectivePlayerName(battle, false)</div>
+                            </div>
+                            <div class="military-battle-side-badge">@GetBattleSideResultLabel(battle, !IsPlayerPerspectiveAttacker(battle))</div>
+                        </div>
+                        @if (GetBattlePerspectiveUnits(battle, false).Any())
+                        {
+                            <div class="military-battle-unit-grid">
+                                @foreach (var unit in GetBattlePerspectiveUnits(battle, false))
+                                {
+                                    <div class="military-battle-unit-card military-battle-unit-card-enemy">
+                                        <div class="military-battle-unit-top">
+                                            <div class="military-battle-unit-main">
+                                                <img class="military-battle-unit-icon" src="@GetUnitIconPath(unit.MilitaryUnitsCode)" alt="@GetUnitLabel(unit.MilitaryUnitsCode)" />
+                                                <div>
+                                                    <div class="military-battle-unit-name">@GetUnitLabel(unit.MilitaryUnitsCode)</div>
+                                                    <div class="military-battle-unit-level">@string.Format(T["tabs.military.reports.level"], unit.Level)</div>
+                                                </div>
+                                            </div>
+                                            <div class="military-battle-loss-pill">-@unit.LostQuantity</div>
+                                        </div>
+                                        <div class="military-battle-unit-stats">
+                                            <div><span>@T["tabs.military.reports.start"]</span><strong>@unit.StartingQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.lost"]</span><strong>@unit.LostQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.left"]</span><strong>@unit.RemainingQuantity</strong></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>;
+
+    private RenderFragment AidHistoryCard(PlayerMilitaryTransport transport) => @<div class="building-card-large inventory-resource-card military-reports-card military-reports-card-history" @key="transport.PlayerMilitaryTransportsId">
+        <div class="inventory-resource-card-top military-reports-card-top">
+            <div class="inventory-resource-icon-wrap military-reports-icon-wrap"><iconify-icon icon="solar:hand-heart-bold" class="military-reports-icon"></iconify-icon></div>
+            <div class="inventory-resource-kicker military-reports-kicker">@T["tabs.military.reports.kicker.helpReport"]</div>
+        </div>
+        <div class="inventory-resource-title military-reports-title">@(PlayerId == transport.PlayerFromId ? transport.PlayerTo?.Name : transport.PlayerFrom?.Name)</div>
+        <div class="inventory-resource-value military-reports-value military-reports-value-text">@T["tabs.military.reports.delivered"]</div>
+        <div class="military-reports-value-caption">@(PlayerId == transport.PlayerFromId ? T["tabs.military.reports.supportSent"] : T["tabs.military.reports.supportReceived"])</div>
+        <div class="inventory-resource-meta-list military-reports-stats">
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.role"]</span><strong>@(PlayerId == transport.PlayerFromId ? T["tabs.military.reports.sender"] : T["tabs.military.reports.receiver"])</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.units"]</span><strong>@GetTransportTotalUnitsIncludingDelivered(transport).ToString("N0")</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.unitStacks"]</span><strong>@GetTransportUnitStacksIncludingDelivered(transport).ToString("N0")</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.arrived"]</span><strong>@transport.EndTime.ToLocalTime().ToString("g")</strong></div>
+        </div>
+        <div class="military-reports-actions">
+            <button type="button" class="btn btn-outline-light military-reports-expand-btn" @onclick="() => ToggleExpanded(GetAidCardKey(transport))">@(IsExpanded(GetAidCardKey(transport)) ? T["tabs.military.reports.hideUnits"] : T["tabs.military.reports.showUnits"])</button>
+            <button type="button" class="btn btn-outline-warning military-reports-archive-btn" @onclick="() => ArchiveAidReport.InvokeAsync(transport.PlayerMilitaryTransportsId)">@T["tabs.military.reports.archive"]</button>
+        </div>
+        @if (IsExpanded(GetAidCardKey(transport)))
+        {
+            <div class="military-reports-expanded">
+                @foreach (var unitEntry in GetTransportUnitDetailsIncludingDelivered(transport))
+                {
+                    <div class="military-reports-unit-row">
+                        <div class="military-reports-unit-main">
+                            <img class="military-reports-unit-icon" src="@GetUnitIconPath(unitEntry.TransportUnit.MilitaryUnitsCode)" alt="@GetUnitLabel(unitEntry.TransportUnit.MilitaryUnitsCode)" />
+                            <div>
+                                <div class="military-reports-unit-name">@GetUnitLabel(unitEntry.TransportUnit.MilitaryUnitsCode)</div>
+                                <div class="military-reports-unit-meta">@string.Format(T["tabs.military.reports.levelQuantity"], unitEntry.TransportUnit.Level, unitEntry.TransportUnit.Quantity)</div>
+                            </div>
+                        </div>
+                        <div class="military-reports-unit-stats">
+                            <span>@string.Format(T["tabs.military.reports.stat.atk"], unitEntry.Unit?.OffensivePoints ?? 0)</span>
+                            <span>@string.Format(T["tabs.military.reports.stat.def"], unitEntry.Unit?.DefensivePoints ?? 0)</span>
+                            @if (unitEntry.Unit?.IsDefensive == true)
+                            {
+                                <span>@GetDefenseCounterLabel(unitEntry.Unit)</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>;
+
+    private RenderFragment SiegeCard(PlayerSiege siege, bool active) => @<div class="building-card-large inventory-resource-card military-reports-card @(active ? "military-reports-card-siege" : "military-reports-card-history")" @key="siege.PlayerSiegesId">
+        <div class="inventory-resource-card-top military-reports-card-top">
+            <div class="inventory-resource-icon-wrap military-reports-icon-wrap"><iconify-icon icon="@(active ? "solar:shield-cross-bold" : "solar:castle-bold")" class="military-reports-icon"></iconify-icon></div>
+            <div class="inventory-resource-kicker military-reports-kicker">@(active ? T["tabs.military.reports.kicker.siegeDefense"] : T["tabs.military.reports.kicker.siegeReport"])</div>
+        </div>
+        <div class="inventory-resource-title military-reports-title">@(active? siege.PlayerFrom?.Name : (PlayerId == siege.PlayerFromId ? siege.PlayerTo?.Name : siege.PlayerFrom?.Name))</div>
+        <div class="inventory-resource-value military-reports-value military-reports-value-text">@GetSiegeStatusLabel(siege.Status)</div>
+        <div class="military-reports-value-caption">@(active ? T["tabs.military.reports.activeOnTerritory"] : PlayerId == siege.PlayerFromId ? T["tabs.military.offensive"] : T["tabs.military.defensive"])</div>
+        <div class="inventory-resource-meta-list military-reports-stats">
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.started"]</span><strong>@siege.StartedAt.ToLocalTime().ToString("g")</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.ended"]</span><strong>@(siege.EndedAt?.ToLocalTime().ToString("g") ?? T["tabs.military.ongoing"])</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["parts.notifications.detail.attacker"]</span><strong>@(siege.PlayerFrom?.Name ?? T["tabs.military.na"])</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["parts.notifications.detail.defender"]</span><strong>@(siege.PlayerTo?.Name ?? T["tabs.military.na"])</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.lootMoney"]</span><strong>@FormatMoney(siege.LootMoney)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootOil"]</span><strong>@FormatResourceAmount(siege.LootOil)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootUranium"]</span><strong>@FormatResourceAmount(siege.LootUranium)</strong></div>
+            <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.lootChips"]</span><strong>@FormatResourceAmount(siege.LootChips)</strong></div>
+                <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.attackerLosses"]</span><strong>@GetSiegeTotalLosses(siege, Side.Attacker.ToDbValue()).ToString("N0")</strong></div>
+                <div class="inventory-resource-meta-row"><span>@T["tabs.military.reports.defenderLosses"]</span><strong>@GetSiegeTotalLosses(siege, Side.Defender.ToDbValue()).ToString("N0")</strong></div>
+        </div>
+        <div class="military-reports-actions">
+            <button type="button" class="btn btn-outline-light military-reports-expand-btn" @onclick="() => ToggleExpanded(GetSiegeCardKey(siege))">@(IsExpanded(GetSiegeCardKey(siege)) ? T["tabs.military.reports.hideDetails"] : T["tabs.military.reports.showDetails"])</button>
+            @if (!active)
+            {
+                <button type="button" class="btn btn-outline-warning military-reports-archive-btn" @onclick="() => ArchiveSiegeReport.InvokeAsync(siege.PlayerSiegesId)">@T["tabs.military.reports.archive"]</button>
+            }
+        </div>
+        @if (IsExpanded(GetSiegeCardKey(siege)))
+        {
+            <div class="military-reports-expanded">
+                <div class="military-battle-detail-grid">
+                    <div class="military-battle-side">
+                        <div class="military-battle-side-head">
+                            <div>
+                                <div class="military-battle-side-title">@GetSiegePerspectiveTitle(siege, true)</div>
+                                <div class="military-battle-side-subtitle">@GetSiegePerspectivePlayerName(siege, true)</div>
+                            </div>
+                            <div class="military-battle-side-badge">@GetSiegePerspectiveLossLabel(siege, true)</div>
+                        </div>
+                        @if (GetSiegePerspectiveUnits(siege, true).Any())
+                        {
+                            <div class="military-battle-unit-grid">
+                                @foreach (var unit in GetSiegePerspectiveUnits(siege, true))
+                                {
+                                    <div class="military-battle-unit-card">
+                                        <div class="military-battle-unit-top">
+                                            <div class="military-battle-unit-main">
+                                                <img class="military-battle-unit-icon" src="@GetUnitIconPath(unit.MilitaryUnitsCode)" alt="@GetUnitLabel(unit.MilitaryUnitsCode)" />
+                                                <div>
+                                                    <div class="military-battle-unit-name">@GetUnitLabel(unit.MilitaryUnitsCode)</div>
+                                                    <div class="military-battle-unit-level">@string.Format(T["tabs.military.reports.level"], unit.Level)</div>
+                                                </div>
+                                            </div>
+                                            <div class="military-battle-loss-pill">-@unit.LostQuantity</div>
+                                        </div>
+                                        <div class="military-battle-unit-stats">
+                                            <div><span>@T["tabs.military.reports.start"]</span><strong>@unit.StartingQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.lost"]</span><strong>@unit.LostQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.left"]</span><strong>@unit.CurrentQuantity</strong></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="military-reports-detail-note">@T["tabs.military.reports.siegeSnapshotUnavailable"]</div>
+                        }
+                    </div>
+                    <div class="military-battle-side">
+                        <div class="military-battle-side-head">
+                            <div>
+                                <div class="military-battle-side-title">@GetSiegePerspectiveTitle(siege, false)</div>
+                                <div class="military-battle-side-subtitle">@GetSiegePerspectivePlayerName(siege, false)</div>
+                            </div>
+                            <div class="military-battle-side-badge">@GetSiegePerspectiveLossLabel(siege, false)</div>
+                        </div>
+                        @if (GetSiegePerspectiveUnits(siege, false).Any())
+                        {
+                            <div class="military-battle-unit-grid">
+                                @foreach (var unit in GetSiegePerspectiveUnits(siege, false))
+                                {
+                                    <div class="military-battle-unit-card military-battle-unit-card-enemy">
+                                        <div class="military-battle-unit-top">
+                                            <div class="military-battle-unit-main">
+                                                <img class="military-battle-unit-icon" src="@GetUnitIconPath(unit.MilitaryUnitsCode)" alt="@GetUnitLabel(unit.MilitaryUnitsCode)" />
+                                                <div>
+                                                    <div class="military-battle-unit-name">@GetUnitLabel(unit.MilitaryUnitsCode)</div>
+                                                    <div class="military-battle-unit-level">@string.Format(T["tabs.military.reports.level"], unit.Level)</div>
+                                                </div>
+                                            </div>
+                                            <div class="military-battle-loss-pill">-@unit.LostQuantity</div>
+                                        </div>
+                                        <div class="military-battle-unit-stats">
+                                            <div><span>@T["tabs.military.reports.start"]</span><strong>@unit.StartingQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.lost"]</span><strong>@unit.LostQuantity</strong></div>
+                                            <div><span>@T["tabs.military.reports.left"]</span><strong>@unit.CurrentQuantity</strong></div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="military-reports-detail-note">@T["tabs.military.reports.siegeSnapshotUnavailable"]</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>;
+
+    private RenderFragment Pager(bool show, int start, int end, int total, EventCallback first, EventCallback prev, EventCallback next, EventCallback last, int page, int totalPages, bool bottom = false) => @<text>
+        @if (show)
+        {
+            <div class="trade-pager @(bottom ? "mt-3" : "mb-3")">
+                <div class="trade-pager-summary small text-muted">@start-@end / @total</div>
+                <div class="trade-pager-controls">
+                    <button type="button" class="trade-pager-btn" disabled="@(page <= 1)" @onclick="first">«</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(page <= 1)" @onclick="prev">‹</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(page >= totalPages)" @onclick="next">›</button>
+                    <button type="button" class="trade-pager-btn" disabled="@(page >= totalPages)" @onclick="last">»</button>
+                </div>
+            </div>
+        }
+    </text>;
+
+    private void ToggleExpanded(string key) { if (!_expandedCards.Add(key)) _expandedCards.Remove(key); }
+    private bool IsExpanded(string key) => _expandedCards.Contains(key);
+    private static string GetTransportCardKey(PlayerMilitaryTransport x) => $"transport:{x.PlayerMilitaryTransportsId}";
+    private static string GetBattleCardKey(PlayerBattleReport x) => $"battle:{x.PlayerBattleReportsId}";
+    private static string GetAidCardKey(PlayerMilitaryTransport x) => $"aid:{x.PlayerMilitaryTransportsId}";
+    private static string GetSiegeCardKey(PlayerSiege x) => $"siege:{x.PlayerSiegesId}";
+    private static string GetUnitIconPath(string? code) => string.IsNullOrWhiteSpace(code) ? "/assets/icons/general/points.png" : $"/assets/icons/military_units/{code.Trim()}.png";
+    private static int GetTransportTotalUnits(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Where(u => u.Quantity > 0).Sum(u => u.Quantity);
+    private static int GetTransportUnitStacks(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Count(u => u.Quantity > 0);
+    private static IEnumerable<TransportUnitDetail> GetTransportUnitDetails(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Where(u => u.Quantity > 0).OrderByDescending(u => u.Level).ThenBy(u => u.MilitaryUnitsCode).Select(u => new TransportUnitDetail(u, ResolveUnit(u.MilitaryUnitsCode)));
+    private static int GetTransportTotalUnitsIncludingDelivered(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Sum(u => u.Quantity);
+    private static int GetTransportUnitStacksIncludingDelivered(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Count(u => u.Quantity > 0);
+    private static IEnumerable<TransportUnitDetail> GetTransportUnitDetailsIncludingDelivered(PlayerMilitaryTransport x) => x.PlayerMilitaryTransportUnits.Where(u => u.Quantity > 0).OrderByDescending(u => u.Level).ThenBy(u => u.MilitaryUnitsCode).Select(u => new TransportUnitDetail(u, ResolveUnit(u.MilitaryUnitsCode)));
+    private static MilitaryUnit? ResolveUnit(string? code) => MilitaryUnitEngine.MilitaryUnitsAllData.FirstOrDefault(u => string.Equals(u.Code.ToString(), code, StringComparison.OrdinalIgnoreCase));
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+    private static string FormatResourceAmount(decimal value) => value.ToString("N2");
+    private string GetDefenseCounterLabel(MilitaryUnit unit)
+        => unit.DefensiveAgainst == null
+            ? T["modals.militaryAction.defenseScope.all"]
+            : string.Format(T["modals.militaryAction.defenseScope.onlyVs"], GetUnitLabel(unit.DefensiveAgainst.Value.ToString()));
+    private string GetBattlePlayerLabel(string? playerName) => string.IsNullOrWhiteSpace(playerName) ? T["tabs.military.na"] : playerName;
+    private bool IsPlayerPerspectiveAttacker(PlayerBattleReport battle) => battle.PlayerFromId == PlayerId;
+    private bool DidPlayerWinBattle(PlayerBattleReport battle)
+        => (IsPlayerPerspectiveAttacker(battle) && DidAttackerWin(battle))
+           || (!IsPlayerPerspectiveAttacker(battle) && !DidAttackerWin(battle));
+    private string GetBattleResultIcon(PlayerBattleReport battle) => DidPlayerWinBattle(battle) ? "solar:cup-star-bold" : "solar:danger-circle-bold";
+    private string GetBattleResultClass(PlayerBattleReport battle) => DidPlayerWinBattle(battle) ? "is-win" : "is-loss";
+    private string GetBattleSideResultIcon(PlayerBattleReport battle, bool attackerSide)
+        => IsWinningSide(battle, attackerSide) ? "solar:check-circle-bold" : "solar:close-circle-bold";
+    private string GetBattleSideResultClass(PlayerBattleReport battle, bool attackerSide)
+        => IsWinningSide(battle, attackerSide) ? "is-win" : "is-loss";
+    private static bool IsWinningSide(PlayerBattleReport battle, bool attackerSide)
+        => attackerSide ? DidAttackerWin(battle) : !DidAttackerWin(battle);
+    private static bool DidAttackerWin(PlayerBattleReport battle)
+        => battle.Result?.Contains("attacker_win", StringComparison.OrdinalIgnoreCase) == true;
+    private string GetBattlePerspectiveTitle(PlayerBattleReport battle, bool isYourSide) => isYourSide ? T["tabs.military.reports.yourForces"] : T["tabs.military.reports.enemyForces"];
+    private string GetBattlePerspectivePlayerName(PlayerBattleReport battle, bool isYourSide)
+    {
+        var useAttacker = isYourSide ? IsPlayerPerspectiveAttacker(battle) : !IsPlayerPerspectiveAttacker(battle);
+        return useAttacker ? (battle.PlayerFrom?.Name ?? T["tabs.military.na"]) : (battle.PlayerTo?.Name ?? T["tabs.military.na"]);
+    }
+    private IEnumerable<PlayerBattleReportUnit> GetBattlePerspectiveUnits(PlayerBattleReport battle, bool isYourSide)
+    {
+        var side = isYourSide
+        ? (IsPlayerPerspectiveAttacker(battle) ? Side.Attacker.ToDbValue() : Side.Defender.ToDbValue())
+        : (IsPlayerPerspectiveAttacker(battle) ? Side.Defender.ToDbValue() : Side.Attacker.ToDbValue());
+
+        return battle.PlayerBattleReportUnits
+            .Where(unit => string.Equals(unit.Side, side, StringComparison.OrdinalIgnoreCase))
+            .Where(unit => isYourSide || unit.LostQuantity > 0)
+            .OrderByDescending(unit => unit.Level)
+            .ThenBy(unit => unit.MilitaryUnitsCode);
+    }
+    private bool IsPlayerPerspectiveSiegeAttacker(PlayerSiege siege) => siege.PlayerFromId == PlayerId;
+    private string GetSiegePerspectiveTitle(PlayerSiege siege, bool isYourSide) => isYourSide ? T["tabs.military.reports.yourForces"] : T["tabs.military.reports.enemyForces"];
+    private string GetSiegePerspectivePlayerName(PlayerSiege siege, bool isYourSide)
+    {
+        var useAttacker = isYourSide ? IsPlayerPerspectiveSiegeAttacker(siege) : !IsPlayerPerspectiveSiegeAttacker(siege);
+        return useAttacker ? (siege.PlayerFrom?.Name ?? T["tabs.military.na"]) : (siege.PlayerTo?.Name ?? T["tabs.military.na"]);
+    }
+    private IEnumerable<PlayerSiegeUnit> GetSiegePerspectiveUnits(PlayerSiege siege, bool isYourSide)
+    {
+        var side = isYourSide
+        ? (IsPlayerPerspectiveSiegeAttacker(siege) ? Side.Attacker.ToDbValue() : Side.Defender.ToDbValue())
+        : (IsPlayerPerspectiveSiegeAttacker(siege) ? Side.Defender.ToDbValue() : Side.Attacker.ToDbValue());
+
+        return siege.PlayerSiegeUnits
+            .Where(unit => string.Equals(unit.Side, side, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(unit => unit.Level)
+            .ThenBy(unit => unit.MilitaryUnitsCode);
+    }
+    private int GetSiegeTotalLosses(PlayerSiege siege, string side)
+        => siege.PlayerSiegeUnits
+            .Where(unit => string.Equals(unit.Side, side, StringComparison.OrdinalIgnoreCase))
+            .Sum(unit => unit.LostQuantity);
+    private string GetSiegePerspectiveLossLabel(PlayerSiege siege, bool isYourSide)
+        => string.Format(T["tabs.military.reports.lossesCount"], GetSiegePerspectiveUnits(siege, isYourSide).Sum(unit => unit.LostQuantity).ToString("N0"));
+    private sealed record TransportUnitDetail(PlayerMilitaryTransportUnit TransportUnit, MilitaryUnit? Unit);
+}

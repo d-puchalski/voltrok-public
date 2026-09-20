@@ -1,0 +1,1695 @@
+@using Microsoft.EntityFrameworkCore
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services.Seasons
+@using VoltrokUtils.Enums
+@using VoltrokWebApp.Components.Parts
+
+@inherits AppStateComponentBase
+@inject IDbContextFactory<AppDbContext> DbContextFactory
+@inject SeasonService SeasonService
+
+@if (AppState.ActiveModal == ModalTypesEnum.Ranking)
+{
+    <div class="info-overlay full-page" @onclick:stopPropagation="true">
+        <div class="info-dialog glass-panel ranking-dialog" @onclick:stopPropagation="true">
+            <div class="dialog-body-container">
+                <div class="main-content-panel w-100">
+                    <div class="content-section">
+                        @if (_isLoading)
+                        {
+                            <div class="empty-placeholder">
+                                <iconify-icon icon="carbon:circle-dash" width="42" class="mb-2 opacity-50"></iconify-icon>
+                                <p>@T["modals.ranking.loading"]</p>
+                            </div>
+                        }
+                        else
+                        {
+                            @if (!string.IsNullOrWhiteSpace(_error))
+                            {
+                                <div class="alert alert-danger border-0 bg-danger bg-opacity-10 text-danger">@_error</div>
+                            }
+                            <div class="ranking-scope-switch mb-3">
+                                <button class="ranking-scope-button @GetScopeButtonClass(RankingScope.Players)" @onclick="() => SetScopeAsync(RankingScope.Players)">
+                                    <iconify-icon icon="solar:users-group-rounded-bold" class="me-2"></iconify-icon>
+                                    @T["modals.ranking.scope.players"]
+                                </button>
+                                <button class="ranking-scope-button @GetScopeButtonClass(RankingScope.Countries)" @onclick="() => SetScopeAsync(RankingScope.Countries)">
+                                    <iconify-icon icon="solar:global-bold" class="me-2"></iconify-icon>
+                                    @T["modals.ranking.scope.countries"]
+                                </button>
+                            </div>
+                            <div class="management-tabs mb-3">
+                                <button class="management-tab @GetTabButtonClass(LeaderboardTab.Richest)" @onclick="() => SetTabAsync(LeaderboardTab.Richest)">
+                                    <iconify-icon icon="solar:wallet-money-bold" class="me-2 text-warning"></iconify-icon>
+                                    @T["modals.ranking.tab.richest"]
+                                </button>
+                                @if (_activeScope == RankingScope.Players)
+                                {
+                                    <button class="management-tab @GetTabButtonClass(LeaderboardTab.Army)" @onclick="() => SetTabAsync(LeaderboardTab.Army)">
+                                        <iconify-icon icon="solar:shield-user-bold" class="me-2 text-danger"></iconify-icon>
+                                        @T["modals.ranking.tab.army"]
+                                    </button>
+                                    <button class="management-tab @GetTabButtonClass(LeaderboardTab.Loot)" @onclick="() => SetTabAsync(LeaderboardTab.Loot)">
+                                        <iconify-icon icon="solar:treasure-chest-bold" class="me-2 text-success"></iconify-icon>
+                                        @T["modals.ranking.tab.loot"]
+                                    </button>
+                                    <button class="management-tab @GetTabButtonClass(LeaderboardTab.Trade)" @onclick="() => SetTabAsync(LeaderboardTab.Trade)">
+                                        <iconify-icon icon="solar:delivery-bold" class="me-2 text-primary"></iconify-icon>
+                                        @T["modals.ranking.tab.trade"]
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button class="management-tab @GetTabButtonClass(LeaderboardTab.Military)" @onclick="() => SetTabAsync(LeaderboardTab.Military)">
+                                        <iconify-icon icon="solar:shield-bold" class="me-2 text-danger"></iconify-icon>
+                                        @T["modals.ranking.tab.militaryCountries"]
+                                    </button>
+                                    <button class="management-tab @GetTabButtonClass(LeaderboardTab.Trade)" @onclick="() => SetTabAsync(LeaderboardTab.Trade)">
+                                        <iconify-icon icon="solar:delivery-bold" class="me-2 text-primary"></iconify-icon>
+                                        @T["modals.ranking.tab.tradeCountries"]
+                                    </button>
+                                }
+
+                                <button type="button" class="management-tab modal-close-tab ms-auto" @onclick="CloseModal">
+                                    <iconify-icon icon="solar:close-circle-bold" class="me-1"></iconify-icon>
+                                    @T["layout.main.dismiss"]
+                                </button>
+                            </div>
+                            <div class="glass-card p-3 ranking-shell">
+                                <div class="d-flex align-items-center mb-2">
+                                    <iconify-icon icon="@GetCurrentRankingIcon()" class="me-2 @GetCurrentRankingIconClass()"></iconify-icon>
+                                    <h6 class="m-0 text-white">@GetCurrentRankingTitle()</h6>
+                                </div>
+                                @if (GetCurrentEntries().Count == 0)
+                                {
+                                    <div class="small text-muted">@T["modals.ranking.noData"]</div>
+                                }
+                                else
+                                {
+                                    @if (GetPodiumEntries().Count > 0)
+                                    {
+                                        <div class="ranking-podium-tree">
+                                            @if (GetPodiumEntries().FirstOrDefault(entry => entry.Position == 1) is RankingEntry winner)
+                                            {
+                                                <div class="ranking-podium-winner-wrap">
+                                                    <div class="ranking-podium-card ranking-podium-card-winner building-card-large @(winner.IsMine ? "ranking-is-mine" : string.Empty)">
+                                                        @RenderAvatar(winner, true)
+                                                        <div class="ranking-podium-role">#1</div>
+                                                        <div class="ranking-podium-name">@RenderEntryName(winner)</div>
+                                                        <div class="ranking-podium-country">
+                                                            @RenderEntryMeta(winner)
+                                                        </div>
+                                                        <div class="ranking-podium-value">@winner.ValueLabel</div>
+                                                    </div>
+                                                </div>
+                                            }
+
+                                            @if (GetPodiumEntries().Count > 1)
+                                            {
+                                                <div class="ranking-podium-connector" aria-hidden="true">
+                                                    <span class="ranking-podium-connector-line"></span>
+                                                </div>
+                                                <div class="ranking-podium-members-grid">
+                                                    @foreach (var entry in GetPodiumEntries().Where(e => e.Position > 1).OrderBy(e => e.Position))
+                                                    {
+                                                        <div class="ranking-podium-card ranking-podium-card-member building-card-large @(entry.IsMine ? "ranking-is-mine" : string.Empty)">
+                                                            @RenderAvatar(entry, false)
+                                                            <div class="ranking-podium-role">#@entry.Position</div>
+                                                            <div class="ranking-podium-name">@RenderEntryName(entry)</div>
+                                                            <div class="ranking-podium-country">
+                                                                @RenderEntryMeta(entry)
+                                                            </div>
+                                                            <div class="ranking-podium-meta">@entry.ValueLabel</div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (GetCardEntries().Count > 0)
+                                    {
+                                        <div class="ranking-card-grid">
+                                            @foreach (var entry in GetCardEntries())
+                                            {
+                                                <div class="ranking-spotlight-card building-card-large @(entry.IsMine ? "ranking-is-mine" : string.Empty)">
+                                                    <div class="ranking-spotlight-head">
+                                                        <span class="ranking-spotlight-rank">#@entry.Position</span>
+                                                        <span class="ranking-spotlight-value">@entry.ValueLabel</span>
+                                                    </div>
+                                                    <div class="ranking-spotlight-body">
+                                                        @RenderAvatar(entry, false)
+                                                        <div class="ranking-spotlight-content">
+                                                            <div class="ranking-spotlight-name">@RenderEntryName(entry)</div>
+                                                            <div class="ranking-spotlight-country">@RenderEntryMeta(entry)</div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (GetCurrentPagedEntries().Count > 0)
+                                    {
+                                        @if (GetCurrentTotalPages() > 1)
+                                        {
+                                            <div class="trade-pager mb-3">
+                                                <small class="trade-pager-summary">@GetGridPageStart()-@GetGridPageEnd() / @GetCurrentEntries().Count</small>
+                                                <div class="trade-pager-controls" role="group" aria-label="@T["modals.ranking.pagination.topAriaLabel"]">
+                                                    <button type="button" class="trade-pager-btn" @onclick="FirstPage" disabled="@(GetCurrentPage() <= 1)">«</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="PrevPage" disabled="@(GetCurrentPage() <= 1)">‹</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="NextPage" disabled="@(GetCurrentPage() >= GetCurrentTotalPages())">›</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="LastPage" disabled="@(GetCurrentPage() >= GetCurrentTotalPages())">»</button>
+                                                </div>
+                                            </div>
+                                        }
+
+                                        <div class="ranking-grid-list">
+                                            @foreach (var entry in GetCurrentPagedEntries())
+                                            {
+                                                <div class="ranking-grid-card @(entry.IsMine ? "ranking-is-mine" : string.Empty)">
+                                                    <div class="ranking-grid-rank">#@entry.Position</div>
+                                                    <div class="ranking-grid-main">
+                                                        <div class="ranking-grid-name">@RenderEntryName(entry)</div>
+                                                        <div class="ranking-grid-country">@RenderEntryMeta(entry)</div>
+                                                    </div>
+                                                    <div class="ranking-grid-value">@entry.ValueLabel</div>
+                                                </div>
+                                            }
+                                        </div>
+
+                                        @if (GetCurrentTotalPages() > 1)
+                                        {
+                                            <div class="trade-pager mt-3">
+                                                <small class="trade-pager-summary">@GetGridPageStart()-@GetGridPageEnd() / @GetCurrentEntries().Count</small>
+                                                <div class="trade-pager-controls" role="group" aria-label="@T["modals.ranking.pagination.bottomAriaLabel"]">
+                                                    <button type="button" class="trade-pager-btn" @onclick="FirstPage" disabled="@(GetCurrentPage() <= 1)">«</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="PrevPage" disabled="@(GetCurrentPage() <= 1)">‹</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="NextPage" disabled="@(GetCurrentPage() >= GetCurrentTotalPages())">›</button>
+                                                    <button type="button" class="trade-pager-btn" @onclick="LastPage" disabled="@(GetCurrentPage() >= GetCurrentTotalPages())">»</button>
+                                                </div>
+                                            </div>
+                                        }
+                                    }
+                                }
+                            </div>
+
+                            <div class="glass-card p-3 mt-3 season-archive-shell">
+                                <div class="season-archive-head">
+                                    <div>
+                                        <div class="season-archive-kicker">Season leaderboard archive</div>
+                                        <h6 class="m-0 text-white">Browse closed seasons</h6>
+                                    </div>
+
+                                    @if (_seasonArchive.Count > 0)
+                                    {
+                                        <select class="form-select season-archive-select" value="@(_selectedSeasonId?.ToString() ?? string.Empty)" @onchange="HandleSeasonSelectionChanged">
+                                            @foreach (var season in _seasonArchive)
+                                            {
+                                                <option value="@season.SeasonId">@GetSeasonLabel(season)</option>
+                                            }
+                                        </select>
+                                    }
+                                </div>
+
+                                @if (_isSeasonLoading)
+                                {
+                                    <div class="small text-muted">Loading season archive...</div>
+                                }
+                                else if (_selectedSeasonLeaderboard is null)
+                                {
+                                    <div class="small text-muted">No completed season leaderboard yet.</div>
+                                }
+                                else
+                                {
+                                    <div class="season-archive-summary">
+                                        <div class="season-archive-stat">
+                                            <span class="season-archive-stat-label">Season</span>
+                                            <strong>#@_selectedSeasonLeaderboard.SeasonNumber</strong>
+                                        </div>
+                                        <div class="season-archive-stat">
+                                            <span class="season-archive-stat-label">Window</span>
+                                            <strong>@FormatSeasonRange(_selectedSeasonLeaderboard.StartsAtUtc, _selectedSeasonLeaderboard.EndsAtUtc)</strong>
+                                        </div>
+                                        <div class="season-archive-stat">
+                                            <span class="season-archive-stat-label">Ended</span>
+                                            <strong>@(_selectedSeasonArchive?.ClosedAtUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</strong>
+                                        </div>
+                                        <div class="season-archive-stat">
+                                            <span class="season-archive-stat-label">Winner</span>
+                                            <strong>@(_selectedSeasonArchive?.WinnerPlayerName ?? "-")</strong>
+                                        </div>
+                                        <div class="season-archive-stat">
+                                            <span class="season-archive-stat-label">Winning country</span>
+                                            <strong>@(_selectedSeasonArchive?.WinnerCountryName ?? "-")</strong>
+                                        </div>
+                                    </div>
+
+                                    <div class="season-archive-columns">
+                                        <div class="season-archive-column">
+                                            <div class="season-archive-column-title">Top players</div>
+                                            @if (_selectedSeasonLeaderboard.Players.Count == 0)
+                                            {
+                                                <div class="small text-muted">No player entries.</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="season-archive-list">
+                                                    @for (var i = 0; i < _selectedSeasonLeaderboard.Players.Count; i++)
+                                                    {
+                                                        var entry = _selectedSeasonLeaderboard.Players[i];
+                                                        <div class="season-archive-row">
+                                                            <div class="season-archive-row-rank">#@(i + 1)</div>
+                                                            <div class="season-archive-row-main">
+                                                                <div class="season-archive-row-name">@entry.PlayerName</div>
+                                                                <div class="season-archive-row-meta">
+                                                                    @entry.CountryName
+                                                                </div>
+                                                                <div class="season-archive-row-meta">
+                                                                    @entry.PlayerMoney.ToString("N2") / @entry.PlayerOil.ToString("N2") / @entry.PlayerUranium.ToString("N2") / @entry.PlayerChips.ToString("N2")
+                                                                </div>
+                                                            </div>
+                                                            <div class="season-archive-row-score">@entry.SeasonScore.ToString("N2")</div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+
+                                        <div class="season-archive-column">
+                                            <div class="season-archive-column-title">Top countries</div>
+                                            @if (_selectedSeasonLeaderboard.Countries.Count == 0)
+                                            {
+                                                <div class="small text-muted">No country entries.</div>
+                                            }
+                                            else
+                                            {
+                                                <div class="season-archive-list">
+                                                    @for (var i = 0; i < _selectedSeasonLeaderboard.Countries.Count; i++)
+                                                    {
+                                                        var entry = _selectedSeasonLeaderboard.Countries[i];
+                                                        <div class="season-archive-row">
+                                                            <div class="season-archive-row-rank">#@(i + 1)</div>
+                                                            <div class="season-archive-row-main">
+                                                                <div class="season-archive-row-name">@entry.CountryName</div>
+                                                                <div class="season-archive-row-meta">
+                                                                    @entry.CountryMoney.ToString("N2") / @entry.CountryOil.ToString("N2") / @entry.CountryUranium.ToString("N2") / @entry.CountryChips.ToString("N2")
+                                                                </div>
+                                                            </div>
+                                                            <div class="season-archive-row-score">@entry.SeasonScore.ToString("N2")</div>
+                                                        </div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const int RankingLimit = 100;
+    private const int RankingPageSize = 15;
+    private bool _isLoading;
+    private string? _error;
+    private bool _isSeasonLoading;
+    private List<RankingEntry> _richestPlayers = [];
+    private List<RankingEntry> _largestArmyPlayers = [];
+    private List<RankingEntry> _largestLootPlayers = [];
+    private List<RankingEntry> _largestTradePlayers = [];
+    private List<RankingEntry> _richestCountries = [];
+    private List<RankingEntry> _largestMilitaryCountries = [];
+    private List<RankingEntry> _largestTradeCountries = [];
+    private IReadOnlyList<SeasonService.SeasonArchiveItem> _seasonArchive = [];
+    private SeasonService.SeasonArchiveItem? _selectedSeasonArchive;
+    private SeasonService.SeasonLeaderboardSnapshot? _selectedSeasonLeaderboard;
+    private Guid? _selectedSeasonId;
+    private RankingScope _activeScope = RankingScope.Players;
+    private LeaderboardTab _activeTab = LeaderboardTab.Richest;
+    private readonly Dictionary<string, int> _currentPages = new();
+    private bool _wasOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRankingsAsync();
+        _wasOpen = AppState.ActiveModal == ModalTypesEnum.Ranking;
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        var isOpen = AppState.ActiveModal == ModalTypesEnum.Ranking;
+        if (isOpen && !_wasOpen)
+        {
+            await LoadRankingsAsync();
+        }
+
+        _wasOpen = isOpen;
+    }
+
+    private async Task LoadRankingsAsync()
+    {
+        _isLoading = true;
+        _error = null;
+
+        try
+        {
+            await using var db = await DbContextFactory.CreateDbContextAsync();
+            var myPlayerId = AppState.MyPlayer?.PlayersId;
+            var myCountryId = AppState.MyPlayer?.CountriesId;
+            var players = db.Players.AsNoTracking();
+            var countries = db.Countries.AsNoTracking();
+            var playerWithCountry = players
+                .GroupJoin(
+                    countries,
+                    player => player.CountriesId,
+                    country => country.CountriesId,
+                    (player, group) => new { Player = player, Country = group.FirstOrDefault() });
+
+            var richestPlayerRows = await playerWithCountry
+                .OrderByDescending(v => v.Player.Money)
+                .Take(RankingLimit)
+                .Select(v => new
+                {
+                    EntityId = v.Player.PlayersId,
+                    v.Player.Name,
+                    Score = v.Player.Money,
+                    v.Player.LocationX,
+                    v.Player.LocationY,
+                    v.Player.PlayerAvatar,
+                    v.Player.IsNpc,
+                    IsMine = myPlayerId == v.Player.PlayersId,
+                    CountryFlag = v.Country != null ? v.Country.Flag : null,
+                    CountryIsoCode2 = v.Country != null ? v.Country.IsoCode2 : null
+                })
+                .ToListAsync();
+            _richestPlayers = richestPlayerRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Player,
+                    row.EntityId,
+                    row.Name,
+                    row.Score,
+                    FormatMoney(row.Score),
+                    row.IsMine,
+                    GetCountryFlagUrl(row.CountryFlag, row.CountryIsoCode2),
+                    GetCountryLabel(row.CountryIsoCode2),
+                    row.EntityId,
+                    row.LocationX,
+                    row.LocationY,
+                    row.PlayerAvatar,
+                    row.IsNpc))
+                .ToList();
+
+            var armyAgg = db.PlayerMilitaryUnits
+                .AsNoTracking()
+                .GroupBy(military => military.PlayersId)
+                .Select(g => new { PlayerId = g.Key, Value = g.Sum(x => x.Quantity) });
+
+            var largestArmyRows = await armyAgg
+                .OrderByDescending(a => a.Value)
+                .Take(RankingLimit)
+                .Join(
+                    playerWithCountry,
+                    a => a.PlayerId,
+                    v => v.Player.PlayersId,
+                    (a, v) => new
+                    {
+                        EntityId = v.Player.PlayersId,
+                        Name = v.Player.Name,
+                        Score = (decimal)a.Value,
+                        v.Player.LocationX,
+                        v.Player.LocationY,
+                        v.Player.PlayerAvatar,
+                        v.Player.IsNpc,
+                        IsMine = myPlayerId == v.Player.PlayersId,
+                        CountryFlag = v.Country != null ? v.Country.Flag : null,
+                        CountryIsoCode2 = v.Country != null ? v.Country.IsoCode2 : null
+                    })
+                .ToListAsync();
+            _largestArmyPlayers = largestArmyRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Player,
+                    row.EntityId,
+                    row.Name,
+                    row.Score,
+                    $"{row.Score:N0}",
+                    row.IsMine,
+                    GetCountryFlagUrl(row.CountryFlag, row.CountryIsoCode2),
+                    GetCountryLabel(row.CountryIsoCode2),
+                    row.EntityId,
+                    row.LocationX,
+                    row.LocationY,
+                    row.PlayerAvatar,
+                    row.IsNpc))
+                .ToList();
+
+            var lootAgg = db.PlayerBattleReports
+                .AsNoTracking()
+                .GroupBy(r => r.PlayerFromId)
+                .Select(g => new { PlayerId = g.Key, Value = g.Sum(x => x.LootMoney) });
+
+            var largestLootRows = await lootAgg
+                .OrderByDescending(l => l.Value)
+                .Take(RankingLimit)
+                .Join(
+                    playerWithCountry,
+                    l => l.PlayerId,
+                    v => v.Player.PlayersId,
+                    (l, v) => new
+                    {
+                        EntityId = v.Player.PlayersId,
+                        v.Player.Name,
+                        Score = l.Value,
+                        v.Player.LocationX,
+                        v.Player.LocationY,
+                        v.Player.PlayerAvatar,
+                        v.Player.IsNpc,
+                        IsMine = myPlayerId == v.Player.PlayersId,
+                        CountryFlag = v.Country != null ? v.Country.Flag : null,
+                        CountryIsoCode2 = v.Country != null ? v.Country.IsoCode2 : null
+                    })
+                .ToListAsync();
+            _largestLootPlayers = largestLootRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Player,
+                    row.EntityId,
+                    row.Name,
+                    row.Score,
+                    FormatMoney(row.Score),
+                    row.IsMine,
+                    GetCountryFlagUrl(row.CountryFlag, row.CountryIsoCode2),
+                    GetCountryLabel(row.CountryIsoCode2),
+                    row.EntityId,
+                    row.LocationX,
+                    row.LocationY,
+                    row.PlayerAvatar,
+                    row.IsNpc))
+                .ToList();
+
+            var tradeAgg = db.PlayerTrades
+                .AsNoTracking()
+                .GroupBy(t => t.FromPlayersId)
+                .Select(g => new { PlayerId = g.Key, Value = g.Sum(x => x.TotalPrice) });
+
+            var largestTradeRows = await tradeAgg
+                .OrderByDescending(t => t.Value)
+                .Take(RankingLimit)
+                .Join(
+                    playerWithCountry,
+                    t => t.PlayerId,
+                    v => v.Player.PlayersId,
+                    (t, v) => new
+                    {
+                        EntityId = v.Player.PlayersId,
+                        v.Player.Name,
+                        Score = t.Value,
+                        v.Player.LocationX,
+                        v.Player.LocationY,
+                        v.Player.PlayerAvatar,
+                        v.Player.IsNpc,
+                        IsMine = myPlayerId == v.Player.PlayersId,
+                        CountryFlag = v.Country != null ? v.Country.Flag : null,
+                        CountryIsoCode2 = v.Country != null ? v.Country.IsoCode2 : null
+                    })
+                .ToListAsync();
+            _largestTradePlayers = largestTradeRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Player,
+                    row.EntityId,
+                    row.Name,
+                    row.Score,
+                    FormatMoney(row.Score),
+                    row.IsMine,
+                    GetCountryFlagUrl(row.CountryFlag, row.CountryIsoCode2),
+                    GetCountryLabel(row.CountryIsoCode2),
+                    row.EntityId,
+                    row.LocationX,
+                    row.LocationY,
+                    row.PlayerAvatar,
+                    row.IsNpc))
+                .ToList();
+
+            var countryMemberCounts = players
+                .AsNoTracking()
+                .GroupBy(player => player.CountriesId)
+                .Select(g => new
+                {
+                    CountryId = g.Key,
+                    Members = g.Count()
+                });
+
+            var richestCountryRows = await countries
+                .GroupJoin(
+                    countryMemberCounts,
+                    country => country.CountriesId,
+                    members => members.CountryId,
+                    (country, members) => new
+                    {
+                        Country = country,
+                        Members = members.Select(v => v.Members).FirstOrDefault()
+                    })
+                .OrderByDescending(v => v.Country.Money)
+                .Take(RankingLimit)
+                .ToListAsync();
+            _richestCountries = richestCountryRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Country,
+                    row.Country.CountriesId,
+                    row.Country.Name,
+                    row.Country.Money,
+                    FormatMoney(row.Country.Money),
+                    myCountryId == row.Country.CountriesId,
+                    null,
+                    string.Format(T["modals.ranking.meta.players"], row.Members),
+                    null,
+                    null,
+                    null,
+                    GetCountryFlagUrl(row.Country.Flag, row.Country.IsoCode2),
+                    false))
+                .ToList();
+
+            var militaryByCountry = armyAgg
+                .Join(
+                    players,
+                    military => military.PlayerId,
+                    player => player.PlayersId,
+                    (military, player) => new
+                    {
+                        CountryId = player.CountriesId,
+                        military.Value
+                    })
+                .GroupBy(row => row.CountryId)
+                .Select(g => new
+                {
+                    CountryId = g.Key,
+                    Value = g.Sum(x => x.Value)
+                });
+
+            var largestMilitaryCountryRows = await countries
+                .Join(
+                    militaryByCountry,
+                    country => country.CountriesId,
+                    military => military.CountryId,
+                    (country, military) => new
+                    {
+                        Country = country,
+                        Score = (decimal)military.Value
+                    })
+                .GroupJoin(
+                    countryMemberCounts,
+                    row => row.Country.CountriesId,
+                    members => members.CountryId,
+                    (row, members) => new
+                    {
+                        row.Country,
+                        row.Score,
+                        Members = members.Select(v => v.Members).FirstOrDefault()
+                    })
+                .OrderByDescending(row => row.Score)
+                .Take(RankingLimit)
+                .ToListAsync();
+            _largestMilitaryCountries = largestMilitaryCountryRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Country,
+                    row.Country.CountriesId,
+                    row.Country.Name,
+                    row.Score,
+                    $"{row.Score:N0}",
+                    myCountryId == row.Country.CountriesId,
+                    null,
+                    string.Format(T["modals.ranking.meta.players"], row.Members),
+                    null,
+                    null,
+                    null,
+                    GetCountryFlagUrl(row.Country.Flag, row.Country.IsoCode2),
+                    false))
+                .ToList();
+
+            var tradeByCountry = db.PlayerTrades
+                .AsNoTracking()
+                .Join(
+                    players,
+                    trade => trade.FromPlayersId,
+                    player => player.PlayersId,
+                    (trade, player) => new
+                    {
+                        CountryId = player.CountriesId,
+                        trade.TotalPrice
+                    })
+                .GroupBy(row => row.CountryId)
+                .Select(g => new
+                {
+                    CountryId = g.Key,
+                    Value = g.Sum(x => x.TotalPrice)
+                });
+
+            var largestTradeCountryRows = await countries
+                .Join(
+                    tradeByCountry,
+                    country => country.CountriesId,
+                    trade => trade.CountryId,
+                    (country, trade) => new
+                    {
+                        Country = country,
+                        Score = trade.Value
+                    })
+                .GroupJoin(
+                    countryMemberCounts,
+                    row => row.Country.CountriesId,
+                    members => members.CountryId,
+                    (row, members) => new
+                    {
+                        row.Country,
+                        row.Score,
+                        Members = members.Select(v => v.Members).FirstOrDefault()
+                    })
+                .OrderByDescending(row => row.Score)
+                .Take(RankingLimit)
+                .ToListAsync();
+            _largestTradeCountries = largestTradeCountryRows
+                .Select(row => new RankingEntry(
+                    RankingEntryType.Country,
+                    row.Country.CountriesId,
+                    row.Country.Name,
+                    row.Score,
+                    FormatMoney(row.Score),
+                    myCountryId == row.Country.CountriesId,
+                    null,
+                    string.Format(T["modals.ranking.meta.players"], row.Members),
+                    null,
+                    null,
+                    null,
+                    GetCountryFlagUrl(row.Country.Flag, row.Country.IsoCode2),
+                    false))
+                .ToList();
+
+            ApplyPositions(_richestPlayers);
+            ApplyPositions(_largestArmyPlayers);
+            ApplyPositions(_largestLootPlayers);
+            ApplyPositions(_largestTradePlayers);
+            ApplyPositions(_richestCountries);
+            ApplyPositions(_largestMilitaryCountries);
+            ApplyPositions(_largestTradeCountries);
+            MoveToMyEntryPages();
+            await LoadSeasonArchiveAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["modals.ranking.error.logPrefix"]);
+            _error = T["modals.ranking.error.loadFailed"];
+            _richestPlayers = [];
+            _largestArmyPlayers = [];
+            _largestLootPlayers = [];
+            _largestTradePlayers = [];
+            _richestCountries = [];
+            _largestMilitaryCountries = [];
+            _largestTradeCountries = [];
+        }
+        finally
+        {
+            _isLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadSeasonArchiveAsync()
+    {
+        _isSeasonLoading = true;
+
+        try
+        {
+            _seasonArchive = await SeasonService.GetCompletedSeasonsAsync(12);
+
+            if (_seasonArchive.Count == 0)
+            {
+                _selectedSeasonId = null;
+                _selectedSeasonArchive = null;
+                _selectedSeasonLeaderboard = null;
+                return;
+            }
+
+            if (_selectedSeasonId is null || !_seasonArchive.Any(item => item.SeasonId == _selectedSeasonId))
+            {
+                _selectedSeasonId = _seasonArchive.First().SeasonId;
+            }
+
+            await LoadSelectedSeasonAsync();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to load season archive.");
+            _seasonArchive = [];
+            _selectedSeasonArchive = null;
+            _selectedSeasonLeaderboard = null;
+        }
+        finally
+        {
+            _isSeasonLoading = false;
+        }
+    }
+
+    private async Task LoadSelectedSeasonAsync()
+    {
+        if (_selectedSeasonId is null)
+        {
+            _selectedSeasonArchive = null;
+            _selectedSeasonLeaderboard = null;
+            return;
+        }
+
+        _selectedSeasonArchive = _seasonArchive.FirstOrDefault(item => item.SeasonId == _selectedSeasonId);
+        _selectedSeasonLeaderboard = await SeasonService.GetSeasonLeaderboardAsync(_selectedSeasonId.Value, 10);
+    }
+
+    private async Task HandleSeasonSelectionChanged(ChangeEventArgs e)
+    {
+        if (!Guid.TryParse(e.Value?.ToString(), out var seasonId))
+        {
+            return;
+        }
+
+        _selectedSeasonId = seasonId;
+        _isSeasonLoading = true;
+
+        try
+        {
+            await LoadSelectedSeasonAsync();
+        }
+        finally
+        {
+            _isSeasonLoading = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private List<RankingEntry> GetCurrentEntries()
+    {
+        if (_activeScope == RankingScope.Countries)
+        {
+            return _activeTab switch
+            {
+                LeaderboardTab.Military => _largestMilitaryCountries,
+                LeaderboardTab.Trade => _largestTradeCountries,
+                _ => _richestCountries
+            };
+        }
+
+        return _activeTab switch
+        {
+            LeaderboardTab.Army => _largestArmyPlayers,
+            LeaderboardTab.Loot => _largestLootPlayers,
+            LeaderboardTab.Trade => _largestTradePlayers,
+            _ => _richestPlayers
+        };
+    }
+
+    private static string FormatSeasonRange(DateTime startsAtUtc, DateTime endsAtUtc)
+        => $"{startsAtUtc:yyyy-MM-dd} - {endsAtUtc:yyyy-MM-dd}";
+
+    private static string GetSeasonLabel(SeasonService.SeasonArchiveItem season)
+        => $"Season #{season.SeasonNumber} ({season.StartsAtUtc:yyyy-MM-dd})";
+
+    private Task SetTabAsync(LeaderboardTab tab)
+    {
+        if (_activeTab == tab)
+        {
+            return Task.CompletedTask;
+        }
+
+        _activeTab = tab;
+        var pageKey = GetCurrentPageKey();
+        if (!_currentPages.ContainsKey(pageKey))
+        {
+            _currentPages[pageKey] = 1;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private Task SetScopeAsync(RankingScope scope)
+    {
+        if (_activeScope == scope)
+        {
+            return Task.CompletedTask;
+        }
+
+        _activeScope = scope;
+        _activeTab = scope == RankingScope.Players
+            ? NormalizePlayerTab(_activeTab)
+            : NormalizeCountryTab(_activeTab);
+
+        var pageKey = GetCurrentPageKey();
+        if (!_currentPages.ContainsKey(pageKey))
+        {
+            _currentPages[pageKey] = 1;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private string GetTabButtonClass(LeaderboardTab tab)
+        => _activeTab == tab ? "active" : string.Empty;
+
+    private string GetScopeButtonClass(RankingScope scope)
+        => _activeScope == scope ? "active" : string.Empty;
+
+    private string GetCurrentRankingTitle()
+    {
+        if (_activeScope == RankingScope.Countries)
+        {
+            return _activeTab switch
+            {
+                LeaderboardTab.Military => T["modals.ranking.currentTitle.militaryCountries"],
+                LeaderboardTab.Trade => T["modals.ranking.currentTitle.tradeCountries"],
+                _ => T["modals.ranking.currentTitle.richestCountries"]
+            };
+        }
+
+        return _activeTab switch
+        {
+            LeaderboardTab.Army => T["modals.ranking.currentTitle.army"],
+            LeaderboardTab.Loot => T["modals.ranking.currentTitle.loot"],
+            LeaderboardTab.Trade => T["modals.ranking.currentTitle.trade"],
+            _ => T["modals.ranking.currentTitle.richestPlayers"]
+        };
+    }
+
+    private string GetCurrentRankingIcon()
+    {
+        if (_activeScope == RankingScope.Countries)
+        {
+            return _activeTab switch
+            {
+                LeaderboardTab.Military => "solar:shield-bold",
+                LeaderboardTab.Trade => "solar:delivery-bold",
+                _ => "solar:wallet-money-bold"
+            };
+        }
+
+        return _activeTab switch
+        {
+            LeaderboardTab.Army => "solar:shield-user-bold",
+            LeaderboardTab.Loot => "solar:treasure-chest-bold",
+            LeaderboardTab.Trade => "solar:delivery-bold",
+            _ => "solar:wallet-money-bold"
+        };
+    }
+
+    private string GetCurrentRankingIconClass()
+    {
+        if (_activeScope == RankingScope.Countries)
+        {
+            return _activeTab switch
+            {
+                LeaderboardTab.Military => "text-danger",
+                LeaderboardTab.Trade => "text-primary",
+                _ => "text-warning"
+            };
+        }
+
+        return _activeTab switch
+        {
+            LeaderboardTab.Army => "text-danger",
+            LeaderboardTab.Loot => "text-success",
+            LeaderboardTab.Trade => "text-primary",
+            _ => "text-warning"
+        };
+    }
+
+    private string GetCountryLabel(string? isoCode2)
+    {
+        if (string.IsNullOrWhiteSpace(isoCode2))
+        {
+            return T["modals.ranking.na"];
+        }
+
+        return isoCode2.Length >= 2
+            ? isoCode2[..2].ToUpperInvariant()
+            : isoCode2.ToUpperInvariant();
+    }
+
+    private static string? GetCountryFlagUrl(string? countryFlag, string? isoCode2)
+    {
+        if (!string.IsNullOrWhiteSpace(countryFlag))
+        {
+            var rawFlag = countryFlag.Trim();
+            if (rawFlag.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return rawFlag;
+            }
+
+            if (rawFlag.Length <= 3 && !rawFlag.Contains("/") && !rawFlag.Contains(":"))
+            {
+                return $"https://flagcdn.com/w40/{rawFlag.ToLowerInvariant()}.png";
+            }
+
+            return rawFlag;
+        }
+
+        if (string.IsNullOrWhiteSpace(isoCode2))
+        {
+            return null;
+        }
+
+        var iso = isoCode2.Length >= 2
+            ? isoCode2[..2].ToLowerInvariant()
+            : isoCode2.ToLowerInvariant();
+
+        return $"https://flagcdn.com/w40/{iso}.png";
+    }
+
+    private static void ApplyPositions(List<RankingEntry> entries)
+    {
+        for (var i = 0; i < entries.Count; i++)
+        {
+            entries[i] = entries[i] with { Position = i + 1 };
+        }
+    }
+
+    private RenderFragment RenderAvatar(RankingEntry entry, bool isWinner) => @<div class="ranking-avatar-wrap">
+        @if (!string.IsNullOrWhiteSpace(entry.AvatarUrl))
+        {
+            <img class="ranking-avatar" src="@entry.AvatarUrl" alt="@entry.Name" />
+        }
+        else
+        {
+            <div class="ranking-avatar ranking-avatar-fallback">
+                <iconify-icon icon="@(entry.EntryType == RankingEntryType.Country ? "solar:flag-bold" : "carbon:user-avatar-filled-alt")" width="@(isWinner ? 44 : 34)"></iconify-icon>
+            </div>
+        }
+        @if (entry.Position == 1)
+        {
+            <span class="ranking-avatar-crown">
+                <iconify-icon icon="mdi:crown" width="16"></iconify-icon>
+            </span>
+        }
+    </div>;
+
+    private RenderFragment RenderEntryName(RankingEntry entry) => @<span>
+        @if (entry.PlayerId.HasValue)
+        {
+            <button type="button" class="ranking-player-link" @onclick="() => OpenPlayerOverview(entry)">
+                <PlayerNameWithBadges PlayerId="@entry.PlayerId" PlayerName="@entry.Name" />
+            </button>
+        }
+        else
+        {
+            @entry.Name
+        }
+    </span>;
+
+    private RenderFragment RenderEntryMeta(RankingEntry entry) => @<span class="d-inline-flex align-items-center gap-2 flex-wrap">
+        @if (!string.IsNullOrWhiteSpace(entry.MetaFlagUrl))
+        {
+            <img src="@entry.MetaFlagUrl" alt="@entry.MetaLabel" title="@entry.MetaLabel" class="ranking-country-flag" />
+        }
+        else if (entry.EntryType == RankingEntryType.Player)
+        {
+            <iconify-icon icon="solar:flag-bold" class="text-muted"></iconify-icon>
+        }
+        <span>@entry.MetaLabel</span>
+        @if (entry.IsNpc)
+        {
+            <span class="ranking-chip">@T["modals.player.npcBadge"]</span>
+        }
+    </span>;
+
+    private void CloseModal()
+    {
+        AppState?.CloseModal();
+    }
+
+    private void OpenPlayerOverview(RankingEntry entry)
+    {
+        if (entry.MapLocationX.HasValue && entry.MapLocationY.HasValue)
+        {
+            AppState.RequestMapFocus(entry.MapLocationX.Value, entry.MapLocationY.Value, 13);
+            AppState.CloseModal();
+            return;
+        }
+
+        if (!entry.PlayerId.HasValue)
+        {
+            return;
+        }
+
+        AppState.SetPlayerInfo(entry.PlayerId.Value);
+        AppState.OpenModal(ModalTypesEnum.Player);
+    }
+
+    private int GetCurrentPage()
+    {
+        var pageKey = GetCurrentPageKey();
+        if (!_currentPages.TryGetValue(pageKey, out var currentPage))
+        {
+            currentPage = 1;
+            _currentPages[pageKey] = currentPage;
+        }
+
+        var totalPages = GetCurrentTotalPages();
+        return Math.Max(1, Math.Min(currentPage, totalPages));
+    }
+
+    private int GetCurrentTotalPages()
+    {
+        var totalCount = Math.Max(0, GetCurrentEntries().Count - 10);
+        return Math.Max(1, (int)Math.Ceiling(totalCount / (double)RankingPageSize));
+    }
+
+    private List<RankingEntry> GetCurrentPagedEntries()
+    {
+        var currentPage = GetCurrentPage();
+        return GetCurrentEntries()
+            .Skip(10 + ((currentPage - 1) * RankingPageSize))
+            .Take(RankingPageSize)
+            .ToList();
+    }
+
+    private List<RankingEntry> GetPodiumEntries()
+        => GetCurrentEntries().Take(3).ToList();
+
+    private List<RankingEntry> GetCardEntries()
+        => GetCurrentEntries().Skip(3).Take(5).ToList();
+
+    private int GetGridPageStart()
+    {
+        var gridEntries = GetCurrentPagedEntries();
+        return gridEntries.Count == 0 ? 0 : 11 + ((GetCurrentPage() - 1) * RankingPageSize);
+    }
+
+    private int GetGridPageEnd()
+    {
+        var gridEntries = GetCurrentPagedEntries();
+        var pageStart = GetGridPageStart();
+        return gridEntries.Count == 0 ? 0 : pageStart + gridEntries.Count - 1;
+    }
+
+    private void MoveToMyEntryPages()
+    {
+        _currentPages[GetPageKey(RankingScope.Players, LeaderboardTab.Richest)] = GetPageForMyEntry(_richestPlayers);
+        _currentPages[GetPageKey(RankingScope.Players, LeaderboardTab.Army)] = GetPageForMyEntry(_largestArmyPlayers);
+        _currentPages[GetPageKey(RankingScope.Players, LeaderboardTab.Loot)] = GetPageForMyEntry(_largestLootPlayers);
+        _currentPages[GetPageKey(RankingScope.Players, LeaderboardTab.Trade)] = GetPageForMyEntry(_largestTradePlayers);
+        _currentPages[GetPageKey(RankingScope.Countries, LeaderboardTab.Richest)] = GetPageForMyEntry(_richestCountries);
+        _currentPages[GetPageKey(RankingScope.Countries, LeaderboardTab.Military)] = GetPageForMyEntry(_largestMilitaryCountries);
+        _currentPages[GetPageKey(RankingScope.Countries, LeaderboardTab.Trade)] = GetPageForMyEntry(_largestTradeCountries);
+    }
+
+    private static int GetPageForMyEntry(List<RankingEntry> entries)
+    {
+        var index = entries.FindIndex(entry => entry.IsMine);
+        if (index < 10)
+        {
+            return 1;
+        }
+
+        return ((index - 10) / RankingPageSize) + 1;
+    }
+
+    private Task FirstPage()
+    {
+        _currentPages[GetCurrentPageKey()] = 1;
+        return Task.CompletedTask;
+    }
+
+    private Task PrevPage()
+    {
+        _currentPages[GetCurrentPageKey()] = Math.Max(1, GetCurrentPage() - 1);
+        return Task.CompletedTask;
+    }
+
+    private Task NextPage()
+    {
+        _currentPages[GetCurrentPageKey()] = Math.Min(GetCurrentTotalPages(), GetCurrentPage() + 1);
+        return Task.CompletedTask;
+    }
+
+    private Task LastPage()
+    {
+        _currentPages[GetCurrentPageKey()] = GetCurrentTotalPages();
+        return Task.CompletedTask;
+    }
+
+    private string GetCurrentPageKey() => GetPageKey(_activeScope, _activeTab);
+
+    private static string GetPageKey(RankingScope scope, LeaderboardTab tab) => $"{scope}:{tab}";
+
+    private static LeaderboardTab NormalizePlayerTab(LeaderboardTab tab)
+        => tab is LeaderboardTab.Military ? LeaderboardTab.Army : tab;
+
+    private static LeaderboardTab NormalizeCountryTab(LeaderboardTab tab)
+        => tab is LeaderboardTab.Army or LeaderboardTab.Loot ? LeaderboardTab.Richest : tab;
+
+    private static string FormatMoney(decimal value) => $"₿ {value:N2}";
+
+    private record RankingEntry(
+        RankingEntryType EntryType,
+        Guid EntityId,
+        string Name,
+        decimal Score,
+        string ValueLabel,
+        bool IsMine,
+        string? MetaFlagUrl,
+        string MetaLabel,
+        Guid? PlayerId,
+        decimal? MapLocationX,
+        decimal? MapLocationY,
+        string? AvatarUrl,
+        bool IsNpc)
+    {
+        public int Position { get; init; }
+    }
+
+    private enum RankingScope
+    {
+        Players,
+        Countries
+    }
+
+    private enum RankingEntryType
+    {
+        Player,
+        Country
+    }
+
+    private enum LeaderboardTab
+    {
+        Richest,
+        Army,
+        Loot,
+        Trade,
+        Military
+    }
+}
+
+<style>
+    .ranking-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .ranking-scope-switch {
+        display: inline-flex;
+        gap: 0.45rem;
+        padding: 0.35rem;
+        border-radius: 999px;
+        background: rgba(10, 16, 28, 0.46);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        width: fit-content;
+        max-width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .ranking-scope-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 140px;
+        padding: 0.7rem 1rem;
+        border: 1px solid transparent;
+        border-radius: 999px;
+        background: transparent;
+        color: rgba(218, 228, 240, 0.78);
+        font-weight: 700;
+        letter-spacing: 0.03em;
+        transition: all 0.2s ease;
+    }
+
+    .ranking-scope-button:hover {
+        color: #fff;
+        background: rgba(255, 255, 255, 0.05);
+    }
+
+    .ranking-scope-button.active {
+        color: #fff;
+        background: linear-gradient(135deg, rgba(240, 198, 116, 0.18), rgba(77, 141, 255, 0.16));
+        border-color: rgba(240, 198, 116, 0.28);
+        box-shadow: 0 10px 22px rgba(4, 9, 18, 0.26);
+    }
+
+    .ranking-player-link {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        font: inherit;
+    }
+
+    .ranking-player-link:hover {
+        text-decoration: underline;
+    }
+
+    .ranking-is-mine {
+        box-shadow: inset 0 0 0 1px rgba(110, 179, 255, 0.55);
+        background: color-mix(in srgb, var(--medieval-ui-surface-strong) 84%, rgba(72, 125, 224, 0.2));
+    }
+
+    .ranking-podium-tree {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        padding: 0.35rem 0;
+    }
+
+    .ranking-podium-winner-wrap {
+        display: flex;
+        justify-content: center;
+    }
+
+    .ranking-podium-connector {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 2rem;
+    }
+
+    .ranking-podium-connector-line {
+        position: relative;
+        width: min(100%, 640px);
+        height: 2.25rem;
+    }
+
+    .ranking-podium-connector-line::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 1.2rem;
+        background: linear-gradient(180deg, rgba(240, 198, 116, 0.95), rgba(240, 198, 116, 0.2));
+    }
+
+    .ranking-podium-connector-line::after {
+        content: "";
+        position: absolute;
+        bottom: 0.2rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: min(100%, 520px);
+        height: 2px;
+        background: linear-gradient(90deg, rgba(240, 198, 116, 0.15), rgba(240, 198, 116, 0.92), rgba(240, 198, 116, 0.15));
+    }
+
+    .ranking-podium-members-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+        gap: 1rem;
+        align-items: stretch;
+    }
+
+    .ranking-podium-card,
+    .ranking-spotlight-card,
+    .ranking-grid-card {
+        position: relative;
+        overflow: hidden;
+    }
+
+    .ranking-podium-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        gap: 0.45rem;
+        padding: 1rem 0.9rem;
+    }
+
+    .ranking-podium-card-winner {
+        width: min(100%, 280px);
+    }
+
+    .ranking-podium-card-winner::after {
+        content: "";
+        position: absolute;
+        inset: auto 18px 0.55rem 18px;
+        height: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, rgba(240, 198, 116, 0), rgba(240, 198, 116, 0.95), rgba(240, 198, 116, 0));
+    }
+
+    .ranking-podium-card-member::before {
+        content: "";
+        position: absolute;
+        top: -0.8rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 0.8rem;
+        background: linear-gradient(180deg, rgba(240, 198, 116, 0.85), rgba(240, 198, 116, 0.15));
+    }
+
+    .ranking-avatar-wrap {
+        position: relative;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .ranking-avatar {
+        width: 72px;
+        height: 72px;
+        border-radius: 36px;
+        object-fit: cover;
+        border: 2px solid rgba(240, 198, 116, 0.45);
+        background: rgba(255, 255, 255, 0.06);
+    }
+
+    .ranking-podium-card-winner .ranking-avatar {
+        width: 92px;
+        height: 92px;
+        border-radius: 46px;
+    }
+
+    .ranking-avatar-fallback {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        color: rgba(255, 255, 255, 0.72);
+        background: rgba(255, 255, 255, 0.04);
+    }
+
+    .ranking-avatar-crown {
+        position: absolute;
+        top: -0.35rem;
+        right: -0.35rem;
+        display: inline-flex;
+        justify-content: center;
+        align-items: center;
+        width: 1.8rem;
+        height: 1.8rem;
+        border-radius: 999px;
+        color: #2a1a00;
+        background: linear-gradient(180deg, #ffd979, #e3a92c);
+        box-shadow: 0 8px 18px rgba(227, 169, 44, 0.4);
+    }
+
+    .ranking-podium-role,
+    .ranking-chip {
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    .ranking-podium-role {
+        color: rgba(240, 198, 116, 0.9);
+    }
+
+    .ranking-podium-name,
+    .ranking-spotlight-name,
+    .ranking-grid-name {
+        color: #fff;
+        font-weight: 600;
+        line-height: 1.3;
+    }
+
+    .ranking-podium-name :deep(.player-name-badges-wrap),
+    .ranking-spotlight-name :deep(.player-name-badges-wrap) {
+        justify-content: center;
+    }
+
+    .ranking-podium-country,
+    .ranking-spotlight-country,
+    .ranking-grid-country {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        flex-wrap: wrap;
+        color: rgba(218, 228, 240, 0.76);
+        font-size: 0.8rem;
+    }
+
+    .ranking-country-flag {
+        width: 22px;
+        height: 14px;
+        border-radius: 999px;
+        object-fit: cover;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+
+    .ranking-podium-value,
+    .ranking-podium-meta,
+    .ranking-grid-value,
+    .ranking-spotlight-value {
+        font-size: 0.85rem;
+        color: rgba(255, 230, 150, 0.96);
+        font-weight: 700;
+    }
+
+    .ranking-card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 0.85rem;
+    }
+
+    .ranking-spotlight-card {
+        padding: 0.95rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.8rem;
+    }
+
+    .ranking-spotlight-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 0.75rem;
+    }
+
+    .ranking-spotlight-rank {
+        color: rgba(240, 198, 116, 0.9);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+    }
+
+    .ranking-spotlight-body {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+    }
+
+    .ranking-spotlight-card .ranking-avatar {
+        width: 58px;
+        height: 58px;
+        border-radius: 29px;
+    }
+
+    .ranking-spotlight-content {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+    }
+
+    .ranking-grid-list {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 0.75rem;
+    }
+
+    .ranking-grid-card {
+        padding: 0.9rem 0.95rem;
+        border-radius: 16px;
+        background: color-mix(in srgb, var(--medieval-ui-surface-strong) 88%, transparent);
+        border: 1px solid var(--medieval-ui-border);
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 0.8rem;
+        align-items: center;
+    }
+
+    .ranking-grid-rank {
+        color: rgba(240, 198, 116, 0.9);
+        font-size: 0.78rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        min-width: 2.4rem;
+    }
+
+    .ranking-grid-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+    }
+
+    .ranking-grid-name :deep(.player-name-badges-wrap) {
+        justify-content: flex-start;
+    }
+
+    .ranking-chip {
+        padding: 0.18rem 0.45rem;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        color: #ffe5a9;
+        background: rgba(240, 198, 116, 0.14);
+        border: 1px solid rgba(240, 198, 116, 0.26);
+    }
+
+    .season-archive-shell {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+
+    .season-archive-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+    }
+
+    .season-archive-kicker {
+        color: rgba(240, 198, 116, 0.88);
+        font-size: 0.7rem;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        margin-bottom: 0.2rem;
+    }
+
+    .season-archive-select {
+        max-width: 280px;
+    }
+
+    .season-archive-summary {
+        display: grid;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+        gap: 0.75rem;
+    }
+
+    .season-archive-stat {
+        padding: 0.8rem 0.85rem;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.07);
+        background: rgba(255, 255, 255, 0.03);
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .season-archive-stat-label {
+        font-size: 0.68rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: rgba(240, 198, 116, 0.82);
+        font-weight: 800;
+    }
+
+    .season-archive-columns {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.9rem;
+    }
+
+    .season-archive-column {
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+        padding: 0.9rem;
+        border-radius: 18px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+    }
+
+    .season-archive-column-title {
+        color: #fff;
+        font-weight: 800;
+        font-size: 1rem;
+    }
+
+    .season-archive-list {
+        display: grid;
+        gap: 0.5rem;
+    }
+
+    .season-archive-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem 0.8rem;
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .season-archive-row-rank {
+        color: rgba(240, 198, 116, 0.9);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        min-width: 2.25rem;
+    }
+
+    .season-archive-row-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.2rem;
+    }
+
+    .season-archive-row-name {
+        color: #fff;
+        font-weight: 700;
+        line-height: 1.25;
+    }
+
+    .season-archive-row-meta {
+        color: rgba(224, 232, 242, 0.68);
+        font-size: 0.82rem;
+    }
+
+    .season-archive-row-score {
+        color: #ffe7ab;
+        font-weight: 800;
+        font-size: 0.88rem;
+        white-space: nowrap;
+    }
+
+    @@media (max-width: 768px) {
+        .ranking-podium-card-winner {
+            width: 100%;
+        }
+
+        .ranking-podium-members-grid,
+        .ranking-card-grid,
+        .ranking-grid-list {
+            grid-template-columns: 1fr;
+        }
+
+        .ranking-podium-connector-line::after {
+            width: min(100%, 280px);
+        }
+
+        .ranking-grid-card {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+
+        .ranking-grid-value {
+            text-align: left;
+        }
+
+        .season-archive-summary,
+        .season-archive-columns {
+            grid-template-columns: 1fr;
+        }
+
+        .season-archive-row {
+            grid-template-columns: 1fr;
+            align-items: start;
+        }
+    }
+</style>

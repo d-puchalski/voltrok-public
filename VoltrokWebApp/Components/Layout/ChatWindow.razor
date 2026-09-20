@@ -1,0 +1,904 @@
+@implements IDisposable
+@inject IJSRuntime JsRuntime
+@inject AuthService AuthService
+@inject ChatService ChatService
+@using Serilog
+@using VoltrokEF
+@using VoltrokServices.Services.Auth
+@using VoltrokServices.Services.Chat
+@using VoltrokUtils.Enums
+@using VoltrokUtils.Models
+@inherits AppStateComponentBase
+
+<div class="chat-window chat-sidebar glass-panel @(AppState.IsChatOpen ? "open" : "")" @onclick:stopPropagation>
+    <div class="mail-header">
+        <div>
+            <h6 class="mail-title">@T["layout.chat.title"]</h6>
+            <div class="mail-subtitle">@GetPollingSubtitle()</div>
+        </div>
+        <div class="mail-header-actions">
+            <button type="button" class="btn-close btn-close-white" @onclick="CloseChat"></button>
+        </div>
+    </div>
+
+    <div class="mail-layout">
+        <aside class="mail-sidebar-nav">
+            <div class="mail-nav-section">
+                <div class="mail-nav-label">@T["layout.chat.folders"]</div>
+                <button class="mail-folder @(AppState.ActiveChatChannel == ChatChannel.General ? "active" : "")" @onclick="() => SetChannel(ChatChannel.General)">
+                    <span>@T["layout.chat.channel.general"]</span>
+                    <span class="mail-folder-meta">
+                        <span class="mail-folder-count">@GetChannelMessageCount(ChatChannel.General)</span>
+                        @if (GetChannelUnreadCount(ChatChannel.General) > 0)
+                        {
+                            <span class="mail-folder-unread">@FormatUnreadCount(GetChannelUnreadCount(ChatChannel.General))</span>
+                        }
+                    </span>
+                </button>
+                <button class="mail-folder @(AppState.ActiveChatChannel == ChatChannel.Country ? "active" : "")" @onclick="() => SetChannel(ChatChannel.Country)">
+                    <span>@T["layout.chat.channel.country"]</span>
+                    <span class="mail-folder-meta">
+                        <span class="mail-folder-count">@GetChannelMessageCount(ChatChannel.Country)</span>
+                        @if (GetChannelUnreadCount(ChatChannel.Country) > 0)
+                        {
+                            <span class="mail-folder-unread">@FormatUnreadCount(GetChannelUnreadCount(ChatChannel.Country))</span>
+                        }
+                    </span>
+                </button>
+                <button class="mail-folder @(AppState.ActiveChatChannel == ChatChannel.Direct ? "active" : "")" @onclick="() => SetChannel(ChatChannel.Direct)">
+                    <span>@T["layout.chat.channel.direct"]</span>
+                    <span class="mail-folder-meta">
+                        <span class="mail-folder-count">@Math.Min(_directContacts.Count, 99)</span>
+                        @if (GetChannelUnreadCount(ChatChannel.Direct) > 0)
+                        {
+                            <span class="mail-folder-unread">@FormatUnreadCount(GetChannelUnreadCount(ChatChannel.Direct))</span>
+                        }
+                    </span>
+                </button>
+            </div>
+
+            <div class="mail-nav-section">
+                <div class="mail-nav-label">@T["layout.chat.contacts"]</div>
+                @if (_directContacts.Count == 0)
+                {
+                    <div class="mail-empty-sidebar">@T["layout.chat.noConversations"]</div>
+                }
+                else
+                {
+                    @foreach (var contact in _directContacts)
+                    {
+                        var unread = GetDirectContactUnreadCount(contact.PlayersId);
+                        <button class="mail-contact @(AppState.DirectChatTargetPlayerId == contact.PlayersId ? "active" : "")" @onclick="() => SelectDirectContact(contact)">
+                            <span class="mail-contact-name">@contact.Name</span>
+                            @if (unread > 0)
+                            {
+                                <span class="mail-contact-unread">@FormatUnreadCount(unread)</span>
+                            }
+                        </button>
+                    }
+                }
+            </div>
+        </aside>
+
+        <section class="mail-main">
+            <div class="mail-thread-header">
+                <div class="mail-thread-title">@GetThreadTitle()</div>
+                <div class="mail-thread-subtitle">@GetThreadSubtitle()</div>
+            </div>
+
+            <div class="mail-messages" @ref="_chatContainer">
+                @{
+                    var activeMessages = GetActiveMessages();
+                }
+                @if (_isLoadingMessages && activeMessages.Count == 0)
+                {
+                    <div class="mail-empty-thread">@T["layout.chat.loadingMessages"]</div>
+                }
+                else if (activeMessages.Count == 0)
+                {
+                    <div class="mail-empty-thread">@T["layout.chat.noMessages"]</div>
+                }
+                else
+                {
+                    @foreach (var msg in activeMessages)
+                    {
+                        <article class="mail-message @(IsOwnMessage(msg) ? "own" : "")">
+                            <div class="mail-message-top">
+                                <span class="mail-message-sender">@GetMessageSenderName(msg)</span>
+                                <span class="mail-message-time">@FormatTimestamp(GetMessageSentAt(msg))</span>
+                            </div>
+                            <div class="mail-message-body">@GetMessageText(msg)</div>
+                        </article>
+                    }
+                }
+            </div>
+        </section>
+    </div>
+
+    <div class="mail-compose">
+        <input type="text" class="form-control" placeholder="@GetInputPlaceholder()" @bind="_messageInput" @bind:event="oninput" @onkeydown="HandleKeydown" @onclick:stopPropagation @onfocus="HandleInputFocus" />
+        <button class="btn btn-primary" @onclick="SendMessage" disabled="@(!CanSendMessage() || _isSending)">@(_isSending ? T["layout.chat.sending"] : T["layout.chat.send"])</button>
+    </div>
+</div>
+
+@code {
+    private static readonly TimeSpan PollIntervalWhenOpen = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan PollIntervalWhenClosed = TimeSpan.FromSeconds(15);
+
+    private string _messageInput = string.Empty;
+    private ElementReference _chatContainer;
+    private readonly Dictionary<ChatChannel, List<object>> _channelMessages = new();
+    private readonly Dictionary<Guid, List<ChatPrivateMessage>> _directMessages = new();
+    private readonly List<Player> _directContacts = [];
+    private readonly Dictionary<ChatChannel, int> _unreadByChannel = new();
+    private readonly Dictionary<ChatChannel, HashSet<Guid>> _knownMessageIdsByChannel = new();
+    private readonly Dictionary<Guid, int> _directUnreadByContact = new();
+    private readonly Dictionary<Guid, Guid> _directLastMessageByContact = new();
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+
+    private PeriodicTimer? _pollTimer;
+    private CancellationTokenSource? _pollCts;
+    private Task? _pollTask;
+    private Guid? _activePlayerId;
+    private TimeSpan _activePollInterval = TimeSpan.Zero;
+    private ChatChannel _lastObservedChannel = ChatChannel.General;
+    private Guid? _lastObservedDirectTargetPlayerId;
+    private bool _lastObservedIsChatOpen;
+    private bool _hasMailboxSnapshot;
+    private bool _isLoadingMessages;
+    private bool _isSending;
+    private bool _scrollToBottomPending;
+
+    protected override async Task OnInitializedAsync()
+    {
+        InitializeChannelBuckets();
+        _lastObservedIsChatOpen = AppState.IsChatOpen;
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await EnsurePollingStateAsync();
+        }
+
+        if (_scrollToBottomPending)
+        {
+            _scrollToBottomPending = false;
+            await ScrollToBottom();
+        }
+    }
+
+    protected override async Task OnAppStateChangedAsync()
+    {
+        await EnsurePollingStateAsync();
+        if (!_activePlayerId.HasValue)
+        {
+            return;
+        }
+
+        var channelChanged = _lastObservedChannel != AppState.ActiveChatChannel;
+        var directTargetChanged = _lastObservedDirectTargetPlayerId != AppState.DirectChatTargetPlayerId;
+        var chatOpenChanged = _lastObservedIsChatOpen != AppState.IsChatOpen;
+
+        _lastObservedChannel = AppState.ActiveChatChannel;
+        _lastObservedDirectTargetPlayerId = AppState.DirectChatTargetPlayerId;
+        _lastObservedIsChatOpen = AppState.IsChatOpen;
+
+        if (AppState.IsChatOpen)
+        {
+            MarkActiveThreadAsRead();
+        }
+
+        if (AppState.ActiveChatChannel == ChatChannel.Direct && AppState.DirectChatTargetPlayerId.HasValue)
+        {
+            if (chatOpenChanged || directTargetChanged || !_directMessages.ContainsKey(AppState.DirectChatTargetPlayerId.Value))
+            {
+                await RefreshMailboxAsync(_activePlayerId.Value, CancellationToken.None);
+            }
+
+            return;
+        }
+
+        if (channelChanged)
+        {
+            if (!_channelMessages.TryGetValue(AppState.ActiveChatChannel, out var messages) || messages.Count == 0)
+            {
+                await RefreshMailboxAsync(_activePlayerId.Value, CancellationToken.None);
+            }
+            else
+            {
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+    }
+
+    private void InitializeChannelBuckets()
+    {
+        foreach (var channel in Enum.GetValues<ChatChannel>())
+        {
+            _channelMessages[channel] = [];
+            _unreadByChannel[channel] = 0;
+            _knownMessageIdsByChannel[channel] = [];
+        }
+    }
+
+    private TimeSpan ResolvePollInterval()
+    {
+        return AppState.IsChatOpen ? PollIntervalWhenOpen : PollIntervalWhenClosed;
+    }
+
+    private async Task EnsurePollingStateAsync()
+    {
+        var playerId = AppState.MyPlayer?.PlayersId;
+        if (!playerId.HasValue)
+        {
+            ResetChatState();
+            StopPolling();
+            return;
+        }
+
+        var desiredPollInterval = ResolvePollInterval();
+        if (_activePlayerId == playerId && _pollTask != null && _activePollInterval == desiredPollInterval)
+        {
+            return;
+        }
+
+        StopPolling();
+        _activePlayerId = playerId;
+        _activePollInterval = desiredPollInterval;
+
+        await RefreshMailboxAsync(playerId.Value, CancellationToken.None);
+
+        _pollCts = new CancellationTokenSource();
+        _pollTimer = new PeriodicTimer(_activePollInterval);
+        _pollTask = PollLoopAsync(playerId.Value, _pollCts.Token);
+    }
+
+    private async Task PollLoopAsync(Guid playerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            while (_pollTimer != null && await _pollTimer.WaitForNextTickAsync(cancellationToken))
+            {
+                await RefreshMailboxAsync(playerId, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Serilog.Log.Debug("Chat polling loop cancelled for player {PlayerId}.", playerId);
+            // polling stopped
+        }
+    }
+
+    private async Task RefreshMailboxAsync(Guid playerId, CancellationToken cancellationToken)
+    {
+        if (AppState.MyPlayer == null || AppState.MyPlayer.PlayersId != playerId)
+        {
+            return;
+        }
+
+        var shouldScroll = false;
+        var shouldTrackUnread = _hasMailboxSnapshot;
+
+        await _refreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            var previousCount = GetActiveMessageCount();
+            _isLoadingMessages = true;
+
+            var globalTask = ChatService.GetGlobalChatsAsync();
+            var countryTask = ChatService.GetCountryChatsAsync(playerId);
+            var contactSummariesTask = ChatService.GetDirectContactSummariesAsync(playerId);
+
+            await Task.WhenAll(globalTask, countryTask, contactSummariesTask);
+
+            UpdatePublicChannelState(ChatChannel.General, globalTask.Result.Cast<object>().ToList(), shouldTrackUnread);
+            UpdatePublicChannelState(ChatChannel.Country, countryTask.Result.Cast<object>().ToList(), shouldTrackUnread);
+
+            var contactSummaries = contactSummariesTask.Result;
+            UpdateDirectContacts(contactSummaries);
+            UpdateDirectSummaryState(contactSummaries, playerId, shouldTrackUnread);
+
+            if (AppState.ActiveChatChannel == ChatChannel.Direct && AppState.DirectChatTargetPlayerId.HasValue)
+            {
+                EnsureDirectContact(AppState.DirectChatTargetPlayerId.Value, AppState.DirectChatTargetPlayerName ?? T["layout.chat.playerFallback"]);
+                _directMessages[AppState.DirectChatTargetPlayerId.Value] =
+                    await ChatService.GetDirectChatsAsync(playerId, AppState.DirectChatTargetPlayerId.Value);
+            }
+
+            if (AppState.IsChatOpen)
+            {
+                MarkActiveThreadAsRead();
+            }
+
+            shouldScroll = AppState.IsChatOpen && GetActiveMessageCount() > previousCount;
+            _hasMailboxSnapshot = true;
+            UpdateGlobalUnreadIndicator();
+        }
+        finally
+        {
+            _isLoadingMessages = false;
+            _refreshLock.Release();
+        }
+
+        if (shouldScroll)
+        {
+            _scrollToBottomPending = true;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdatePublicChannelState(ChatChannel channel, List<object> messages, bool trackUnread)
+    {
+        var knownIds = _knownMessageIdsByChannel[channel];
+        var currentIds = messages
+            .Select(GetMessageId)
+            .Where(id => id != Guid.Empty)
+            .ToHashSet();
+
+        if (trackUnread && !IsViewingChannel(channel))
+        {
+            var newIncoming = messages.Count(message =>
+            {
+                var messageId = GetMessageId(message);
+                return messageId != Guid.Empty && !knownIds.Contains(messageId) && !IsOwnMessage(message);
+            });
+
+            if (newIncoming > 0)
+            {
+                _unreadByChannel[channel] = _unreadByChannel.GetValueOrDefault(channel) + newIncoming;
+            }
+        }
+
+        _knownMessageIdsByChannel[channel] = currentIds;
+        _channelMessages[channel] = messages;
+
+        if (IsViewingChannel(channel))
+        {
+            _unreadByChannel[channel] = 0;
+        }
+    }
+
+    private void UpdateDirectContacts(List<DirectContactSummary> contactSummaries)
+    {
+        _directContacts.Clear();
+        _directContacts.AddRange(contactSummaries.Select(summary => new Player
+        {
+            PlayersId = summary.ContactPlayerId,
+            Name = summary.ContactPlayerName
+        }));
+    }
+
+    private void UpdateDirectSummaryState(List<DirectContactSummary> contactSummaries, Guid playerId, bool trackUnread)
+    {
+        var activeContactIds = contactSummaries.Select(summary => summary.ContactPlayerId).ToHashSet();
+
+        foreach (var summary in contactSummaries)
+        {
+            var hadPreviousMessage = _directLastMessageByContact.TryGetValue(summary.ContactPlayerId, out var previousMessageId);
+            var isNewLastMessage = !hadPreviousMessage || previousMessageId != summary.LastMessageId;
+
+            _directLastMessageByContact[summary.ContactPlayerId] = summary.LastMessageId;
+
+            if (!trackUnread || !isNewLastMessage)
+            {
+                continue;
+            }
+
+            var isIncomingMessage = summary.LastSenderPlayerId != playerId;
+            if (!isIncomingMessage || IsViewingDirectContact(summary.ContactPlayerId))
+            {
+                continue;
+            }
+
+            _directUnreadByContact[summary.ContactPlayerId] =
+                _directUnreadByContact.GetValueOrDefault(summary.ContactPlayerId) + 1;
+        }
+
+        foreach (var staleKey in _directLastMessageByContact.Keys.Where(key => !activeContactIds.Contains(key)).ToList())
+        {
+            _directLastMessageByContact.Remove(staleKey);
+        }
+
+        foreach (var staleKey in _directUnreadByContact.Keys.Where(key => !activeContactIds.Contains(key)).ToList())
+        {
+            _directUnreadByContact.Remove(staleKey);
+        }
+
+        foreach (var staleKey in _directMessages.Keys.Where(key => !activeContactIds.Contains(key)).ToList())
+        {
+            _directMessages.Remove(staleKey);
+        }
+
+        _unreadByChannel[ChatChannel.Direct] = SumDirectUnreadCounts();
+    }
+
+    private bool IsViewingChannel(ChatChannel channel)
+    {
+        return AppState.IsChatOpen && AppState.ActiveChatChannel == channel;
+    }
+
+    private bool IsViewingDirectContact(Guid contactPlayerId)
+    {
+        return AppState.IsChatOpen && AppState.ActiveChatChannel == ChatChannel.Direct && AppState.DirectChatTargetPlayerId == contactPlayerId;
+    }
+
+    private void MarkActiveThreadAsRead()
+    {
+        if (AppState.ActiveChatChannel == ChatChannel.Direct)
+        {
+            if (AppState.DirectChatTargetPlayerId.HasValue)
+            {
+                _directUnreadByContact[AppState.DirectChatTargetPlayerId.Value] = 0;
+                _unreadByChannel[ChatChannel.Direct] = SumDirectUnreadCounts();
+            }
+
+            UpdateGlobalUnreadIndicator();
+            return;
+        }
+
+        _unreadByChannel[AppState.ActiveChatChannel] = 0;
+        UpdateGlobalUnreadIndicator();
+    }
+
+    private int SumDirectUnreadCounts()
+    {
+        return _directUnreadByContact.Values.Where(value => value > 0).Sum();
+    }
+
+    private void UpdateGlobalUnreadIndicator()
+    {
+        _unreadByChannel[ChatChannel.Direct] = SumDirectUnreadCounts();
+        var totalUnread = _unreadByChannel.Values.Where(value => value > 0).Sum();
+        AppState.SetChatUnreadCount(totalUnread);
+    }
+
+    private async Task RefreshNowAsync()
+    {
+        if (_activePlayerId.HasValue)
+        {
+            await RefreshMailboxAsync(_activePlayerId.Value, CancellationToken.None);
+        }
+    }
+
+    private int GetActiveMessageCount()
+    {
+        if (AppState.ActiveChatChannel == ChatChannel.Direct && AppState.DirectChatTargetPlayerId.HasValue)
+        {
+            return _directMessages.TryGetValue(AppState.DirectChatTargetPlayerId.Value, out var directMessages)
+                ? directMessages.Count
+                : 0;
+        }
+
+        return _channelMessages.TryGetValue(AppState.ActiveChatChannel, out var messages)
+            ? messages.Count
+            : 0;
+    }
+
+    private void EnsureDirectContact(Guid playerId, string playerName)
+    {
+        var existing = _directContacts.FirstOrDefault(contact => contact.PlayersId == playerId);
+        if (existing != null)
+        {
+            if (!string.Equals(existing.Name, playerName, StringComparison.Ordinal))
+            {
+                existing.Name = playerName;
+            }
+
+            return;
+        }
+
+        _directContacts.Insert(0, new Player
+        {
+            PlayersId = playerId,
+            Name = playerName
+        });
+    }
+
+    private List<object> GetActiveMessages()
+    {
+        if (AppState.ActiveChatChannel == ChatChannel.Direct)
+        {
+            if (AppState.DirectChatTargetPlayerId.HasValue &&
+                _directMessages.TryGetValue(AppState.DirectChatTargetPlayerId.Value, out var directMessages))
+            {
+                return directMessages.Cast<object>().ToList();
+            }
+
+            return [];
+        }
+
+        return _channelMessages.TryGetValue(AppState.ActiveChatChannel, out var messages)
+            ? messages.ToList()
+            : [];
+    }
+
+    private int GetChannelMessageCount(ChatChannel channel)
+    {
+        return _channelMessages.TryGetValue(channel, out var messages)
+            ? messages.Count
+            : 0;
+    }
+
+    private int GetChannelUnreadCount(ChatChannel channel)
+    {
+        return channel == ChatChannel.Direct
+            ? SumDirectUnreadCounts()
+            : _unreadByChannel.GetValueOrDefault(channel);
+    }
+
+    private int GetDirectContactUnreadCount(Guid contactPlayerId)
+    {
+        return _directUnreadByContact.GetValueOrDefault(contactPlayerId);
+    }
+
+    private static string FormatUnreadCount(int count)
+    {
+        return count > 99 ? "99+" : count.ToString();
+    }
+
+    private string GetPollingSubtitle()
+    {
+        var currentSeconds = (int)ResolvePollInterval().TotalSeconds;
+        return string.Format(T["layout.chat.refreshEverySeconds"], currentSeconds);
+    }
+
+    private void SetChannel(ChatChannel channel)
+    {
+        AppState.OpenChat(channel, channel == ChatChannel.Direct ? AppState.DirectChatTargetPlayerId : null, AppState.DirectChatTargetPlayerName);
+        MarkActiveThreadAsRead();
+
+        if (_activePlayerId.HasValue)
+        {
+            _ = RefreshMailboxAsync(_activePlayerId.Value, CancellationToken.None);
+        }
+    }
+
+    private void SelectDirectContact(Player contact)
+    {
+        AppState.OpenChat(ChatChannel.Direct, contact.PlayersId, contact.Name);
+        _directUnreadByContact[contact.PlayersId] = 0;
+        UpdateGlobalUnreadIndicator();
+
+        if (_activePlayerId.HasValue)
+        {
+            _ = RefreshMailboxAsync(_activePlayerId.Value, CancellationToken.None);
+        }
+    }
+
+    private string GetThreadTitle()
+    {
+        return AppState.ActiveChatChannel switch
+        {
+            ChatChannel.General => T["layout.chat.thread.generalTitle"],
+            ChatChannel.Country => T["layout.chat.thread.countryTitle"],
+            ChatChannel.Direct => AppState.DirectChatTargetPlayerName ?? T["layout.chat.thread.directTitle"],
+            _ => T["layout.chat.title"]
+        };
+    }
+
+    private string GetThreadSubtitle()
+    {
+        return AppState.ActiveChatChannel switch
+        {
+            ChatChannel.General => T["layout.chat.thread.generalSubtitle"],
+            ChatChannel.Country => T["layout.chat.thread.countrySubtitle"],
+            ChatChannel.Direct => AppState.DirectChatTargetPlayerId.HasValue
+                ? T["layout.chat.thread.directSubtitle"]
+                : T["layout.chat.thread.chooseContact"],
+            _ => string.Empty
+        };
+    }
+
+    private string GetInputPlaceholder()
+    {
+        return AppState.ActiveChatChannel == ChatChannel.Direct && !AppState.DirectChatTargetPlayerId.HasValue
+            ? T["layout.chat.input.chooseContact"]
+            : T["layout.chat.input.writeMessage"];
+    }
+
+    private bool CanSendMessage()
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return false;
+        }
+
+        if (AppState.ActiveChatChannel == ChatChannel.Direct && !AppState.DirectChatTargetPlayerId.HasValue)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private async Task HandleKeydown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && !e.ShiftKey)
+        {
+            await SendMessage();
+        }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(_messageInput) || !CanSendMessage())
+        {
+            return;
+        }
+
+        if (!await EnsureLoggedIn())
+        {
+            return;
+        }
+
+        if (AppState.MyPlayer == null)
+        {
+            return;
+        }
+
+        _isSending = true;
+        try
+        {
+            var messageText = _messageInput.Trim();
+            var sentMessage = await ChatService.SendChatAsync(
+                messageText,
+                AppState.ActiveChatChannel,
+                AppState.MyPlayer.PlayersId,
+                AppState.ActiveChatChannel == ChatChannel.Direct ? AppState.DirectChatTargetPlayerId : null);
+
+            if (sentMessage == null)
+            {
+                return;
+            }
+
+            AppendMessage(sentMessage);
+            _messageInput = string.Empty;
+            _scrollToBottomPending = true;
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "{LogPrefix}", T["layout.chat.error.sendLogPrefix"]);
+        }
+        finally
+        {
+            _isSending = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void AppendMessage(object message)
+    {
+        switch (message)
+        {
+            case ChatGlobalMessage global:
+                AppendChannelMessage(ChatChannel.General, global);
+                break;
+            case ChatCountryMessage country:
+                AppendChannelMessage(ChatChannel.Country, country);
+                break;
+            case ChatPrivateMessage direct:
+                AppendDirectMessage(direct);
+                break;
+        }
+    }
+
+    private void AppendChannelMessage(ChatChannel channel, object message)
+    {
+        if (!_channelMessages.TryGetValue(channel, out var messages))
+        {
+            messages = [];
+            _channelMessages[channel] = messages;
+        }
+
+        var messageId = GetMessageId(message);
+        if (messages.Any(existing => GetMessageId(existing) == messageId))
+        {
+            return;
+        }
+
+        messages.Add(message);
+        if (messageId != Guid.Empty)
+        {
+            _knownMessageIdsByChannel[channel].Add(messageId);
+        }
+
+        if (IsViewingChannel(channel))
+        {
+            _unreadByChannel[channel] = 0;
+            UpdateGlobalUnreadIndicator();
+        }
+    }
+
+    private void AppendDirectMessage(ChatPrivateMessage message)
+    {
+        var currentPlayerId = AppState.MyPlayer?.PlayersId;
+        if (!currentPlayerId.HasValue)
+        {
+            return;
+        }
+
+        var targetId = message.SenderPlayersId == currentPlayerId.Value
+            ? message.ReceiverPlayersId
+            : message.SenderPlayersId;
+
+        if (!_directMessages.TryGetValue(targetId, out var messages))
+        {
+            messages = [];
+            _directMessages[targetId] = messages;
+        }
+
+        if (messages.Any(existing => existing.MessageId == message.MessageId))
+        {
+            return;
+        }
+
+        messages.Add(message);
+        _directLastMessageByContact[targetId] = message.MessageId;
+
+        var contactName = message.SenderPlayersId == currentPlayerId.Value
+            ? AppState.DirectChatTargetPlayerName ?? T["layout.chat.playerFallback"]
+            : message.SenderPlayers?.Name ?? T["layout.chat.playerFallback"];
+        EnsureDirectContact(targetId, contactName);
+
+        if (IsViewingDirectContact(targetId))
+        {
+            _directUnreadByContact[targetId] = 0;
+        }
+        else if (message.SenderPlayersId != currentPlayerId.Value)
+        {
+            _directUnreadByContact[targetId] = _directUnreadByContact.GetValueOrDefault(targetId) + 1;
+        }
+
+        UpdateGlobalUnreadIndicator();
+    }
+
+    private async Task HandleInputFocus()
+    {
+        await EnsureLoggedIn();
+    }
+
+    private async Task<bool> EnsureLoggedIn()
+    {
+        var token = await AuthService.GetTokenAsync();
+        if (string.IsNullOrEmpty(token))
+        {
+            AppState.OpenModal(ModalTypesEnum.Login);
+            return false;
+        }
+
+        return true;
+    }
+
+    private void CloseChat()
+    {
+        AppState.CloseChat();
+    }
+
+    private async Task ScrollToBottom()
+    {
+        try
+        {
+            await JsRuntime.InvokeVoidAsync(
+                "eval",
+                "const el = document.querySelector('.mail-messages'); if (el) el.scrollTop = el.scrollHeight;");
+        }
+        catch
+        {
+            // ignored
+        }
+    }
+
+    private void ResetChatState()
+    {
+        _channelMessages[ChatChannel.General] = [];
+        _channelMessages[ChatChannel.Country] = [];
+        _channelMessages[ChatChannel.Direct] = [];
+
+        _unreadByChannel[ChatChannel.General] = 0;
+        _unreadByChannel[ChatChannel.Country] = 0;
+        _unreadByChannel[ChatChannel.Direct] = 0;
+
+        _knownMessageIdsByChannel[ChatChannel.General] = [];
+        _knownMessageIdsByChannel[ChatChannel.Country] = [];
+        _knownMessageIdsByChannel[ChatChannel.Direct] = [];
+
+        _directMessages.Clear();
+        _directContacts.Clear();
+        _directUnreadByContact.Clear();
+        _directLastMessageByContact.Clear();
+
+        _activePlayerId = null;
+        _activePollInterval = TimeSpan.Zero;
+        _hasMailboxSnapshot = false;
+        AppState.SetChatUnreadCount(0);
+    }
+
+    private void StopPolling()
+    {
+        _pollCts?.Cancel();
+        _pollCts?.Dispose();
+        _pollCts = null;
+
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+        _pollTask = null;
+    }
+
+    public new void Dispose()
+    {
+        StopPolling();
+        base.Dispose();
+    }
+
+    private static Guid GetMessageId(object message)
+        => message switch
+        {
+            ChatGlobalMessage value => value.MessageId,
+            ChatCountryMessage value => value.MessageId,
+            ChatPrivateMessage value => value.MessageId,
+            _ => Guid.Empty
+        };
+
+    private static string GetMessageText(object message)
+        => message switch
+        {
+            ChatGlobalMessage value => value.MessageText,
+            ChatCountryMessage value => value.MessageText,
+            ChatPrivateMessage value => value.MessageText,
+            _ => string.Empty
+        };
+
+    private static string GetMessageSenderName(object message)
+        => message switch
+        {
+            ChatGlobalMessage value => value.Players?.Name ?? "-",
+            ChatCountryMessage value => value.Players?.Name ?? "-",
+            ChatPrivateMessage value => value.SenderPlayers?.Name ?? "-",
+            _ => "-"
+        };
+
+    private bool IsOwnMessage(object message)
+    {
+        if (AppState.MyPlayer == null)
+        {
+            return false;
+        }
+
+        return message switch
+        {
+            ChatGlobalMessage value => value.PlayersId == AppState.MyPlayer.PlayersId,
+            ChatCountryMessage value => value.PlayersId == AppState.MyPlayer.PlayersId,
+            ChatPrivateMessage value => value.SenderPlayersId == AppState.MyPlayer.PlayersId,
+            _ => false
+        };
+    }
+
+    private static DateTime? GetMessageSentAt(object message)
+        => message switch
+        {
+            ChatGlobalMessage value => value.SentAt,
+            ChatCountryMessage value => value.SentAt,
+            ChatPrivateMessage value => value.SentAt,
+            _ => null
+        };
+
+    private static string FormatTimestamp(DateTime? timestampUtc)
+    {
+        if (!timestampUtc.HasValue)
+        {
+            return "-";
+        }
+
+        var value = timestampUtc.Value;
+        if (value.Kind == DateTimeKind.Unspecified)
+        {
+            value = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        }
+
+        return value.ToLocalTime().ToString("dd.MM HH:mm");
+    }
+}

@@ -1,0 +1,56 @@
+<span class="country-name-with-flag @Class">
+    @if (!string.IsNullOrWhiteSpace(ResolvedFlagUrl))
+    {
+        <img class="country-name-with-flag-image" src="@ResolvedFlagUrl" alt="@Name" title="@Name" style="@ImageStyle" />
+    }
+    else
+    {
+        <span class="country-name-with-flag-fallback" style="@ImageStyle">
+            <iconify-icon icon="solar:flag-bold"></iconify-icon>
+        </span>
+    }
+    <span class="country-name-with-flag-text">@Name</span>
+</span>
+
+@code {
+    [Parameter] public string Name { get; set; } = string.Empty;
+    [Parameter] public string? FlagUrl { get; set; }
+    [Parameter] public string? IsoCode2 { get; set; }
+    [Parameter] public int Size { get; set; } = 20;
+    [Parameter] public string? Class { get; set; }
+
+    private string? ResolvedFlagUrl => ResolveFlagUrl(FlagUrl, IsoCode2);
+    private string ImageStyle => $"width:{Size}px;height:{Size}px;";
+
+    private static string? ResolveFlagUrl(string? countryFlag, string? isoCode2)
+    {
+        if (!string.IsNullOrWhiteSpace(countryFlag))
+        {
+            var rawFlag = countryFlag.Trim();
+            if (rawFlag.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                return rawFlag;
+            }
+
+            if (rawFlag.Length <= 3 && !rawFlag.Contains("/") && !rawFlag.Contains(":"))
+            {
+                return $"https://flagcdn.com/w40/{rawFlag.ToLowerInvariant()}.png";
+            }
+
+            return rawFlag;
+        }
+
+        if (string.IsNullOrWhiteSpace(isoCode2))
+        {
+            return null;
+        }
+
+        var normalizedIso = isoCode2.Trim();
+        if (normalizedIso.Length < 2)
+        {
+            return null;
+        }
+
+        return $"https://flagcdn.com/w40/{normalizedIso[..2].ToLowerInvariant()}.png";
+    }
+}

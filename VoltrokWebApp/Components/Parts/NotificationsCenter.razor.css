@@ -1,0 +1,451 @@
+.notification-stage {
+    position: fixed;
+    inset: 0;
+    z-index: 15000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+}
+
+.notification-stage-backdrop {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--medieval-gold) 18%, transparent) 0, transparent 32%),
+        radial-gradient(circle at 20% 80%, color-mix(in srgb, var(--medieval-accent, #8f6bff) 14%, transparent) 0, transparent 28%),
+        rgba(7, 10, 18, 0.72);
+    backdrop-filter: blur(12px);
+}
+
+.notification-ceremony-card {
+    --notification-accent: var(--medieval-gold);
+    --notification-accent-soft: color-mix(in srgb, var(--medieval-gold) 18%, transparent);
+    position: relative;
+    width: min(520px, calc(100vw - 2rem));
+    border-radius: 34px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 76%, rgba(255, 255, 255, 0.12));
+    background:
+        radial-gradient(circle at top, color-mix(in srgb, var(--medieval-gold) 9%, transparent) 0, transparent 40%),
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-panel-strong) 96%, transparent), color-mix(in srgb, var(--medieval-bg) 92%, transparent));
+    box-shadow:
+        0 26px 70px rgba(0, 0, 0, 0.42),
+        0 0 0 1px rgba(255, 255, 255, 0.03) inset,
+        0 0 44px color-mix(in srgb, var(--medieval-gold) 10%, transparent);
+    color: var(--medieval-text);
+    overflow: hidden;
+    padding: 2.2rem 2rem 1.65rem;
+    animation: notification-stage-enter 0.42s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.notification-ceremony-card.is-alert {
+    --notification-accent: #ff7a59;
+    --notification-accent-soft: rgba(255, 122, 89, 0.22);
+}
+
+.notification-ceremony-card.is-siege {
+    --notification-accent: #ffb14b;
+    --notification-accent-soft: rgba(255, 177, 75, 0.2);
+}
+
+.notification-ceremony-card.is-battle {
+    --notification-accent: var(--medieval-gold);
+    --notification-accent-soft: color-mix(in srgb, var(--medieval-gold) 22%, transparent);
+}
+
+.notification-ceremony-card.is-message {
+    --notification-accent: #64c5ff;
+    --notification-accent-soft: rgba(100, 197, 255, 0.2);
+}
+
+.notification-ceremony-card.is-country {
+    --notification-accent: #8f7bff;
+    --notification-accent-soft: rgba(143, 123, 255, 0.22);
+}
+
+.notification-ceremony-ribbon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--notification-accent) 92%, #ffffff 8%), color-mix(in srgb, var(--notification-accent) 68%, #ff7ecf 32%));
+    color: #fff;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    clip-path: polygon(0 0, 100% 0, calc(100% - 18px) 100%, 0 100%);
+    box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+}
+
+.notification-ceremony-close {
+    position: absolute;
+    top: 1.1rem;
+    right: 1.15rem;
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: color-mix(in srgb, var(--medieval-text) 84%, transparent);
+    z-index: 2;
+}
+
+.notification-ceremony-glow {
+    position: absolute;
+    border-radius: 999px;
+    pointer-events: none;
+    filter: blur(8px);
+    opacity: 0.7;
+}
+
+.notification-ceremony-glow-a {
+    width: 210px;
+    height: 210px;
+    top: -72px;
+    right: -44px;
+    background: radial-gradient(circle, var(--notification-accent-soft) 0, transparent 68%);
+}
+
+.notification-ceremony-glow-b {
+    width: 180px;
+    height: 180px;
+    bottom: -52px;
+    left: -36px;
+    background: radial-gradient(circle, color-mix(in srgb, var(--medieval-accent, #8f6bff) 18%, transparent) 0, transparent 70%);
+}
+
+.notification-ceremony-visual {
+    position: relative;
+    min-height: 210px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.75rem;
+}
+
+.notification-ceremony-emblem {
+    position: relative;
+    z-index: 2;
+    width: 132px;
+    height: 132px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--notification-accent);
+    background:
+        radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.18) 0, transparent 38%),
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-ui-surface-strong) 94%, transparent), color-mix(in srgb, var(--medieval-panel-strong) 94%, transparent));
+    border: 1px solid color-mix(in srgb, var(--notification-accent) 32%, var(--medieval-border));
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.08),
+        0 20px 38px rgba(0, 0, 0, 0.35),
+        0 0 32px var(--notification-accent-soft);
+}
+
+.notification-ceremony-shadow {
+    position: absolute;
+    bottom: 18px;
+    width: 120px;
+    height: 14px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.24);
+    filter: blur(6px);
+}
+
+.notification-ceremony-token,
+.notification-ceremony-spark {
+    position: absolute;
+    color: var(--notification-accent);
+}
+
+.notification-ceremony-token {
+    width: 58px;
+    height: 58px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 18px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--notification-accent) 35%, var(--medieval-panel-strong)), color-mix(in srgb, var(--medieval-panel-strong) 92%, transparent));
+    box-shadow: 0 14px 26px rgba(0, 0, 0, 0.24);
+}
+
+.notification-ceremony-token.token-a {
+    top: 14px;
+    left: 28%;
+    transform: rotate(-18deg);
+    animation: notification-float-a 3.8s ease-in-out infinite;
+}
+
+.notification-ceremony-token.token-b {
+    top: 26px;
+    right: 26%;
+    transform: rotate(16deg);
+    animation: notification-float-b 3.3s ease-in-out infinite;
+}
+
+.notification-ceremony-token.token-c {
+    top: 88px;
+    right: 20%;
+    transform: rotate(24deg);
+    animation: notification-float-c 3.6s ease-in-out infinite;
+}
+
+.notification-ceremony-spark.spark-a {
+    top: 40px;
+    left: 62%;
+    animation: notification-sparkle 1.8s ease-in-out infinite;
+}
+
+.notification-ceremony-spark.spark-b {
+    top: 112px;
+    left: 31%;
+    animation: notification-sparkle 2.1s ease-in-out infinite;
+}
+
+.notification-ceremony-content {
+    text-align: center;
+    max-width: 420px;
+    margin: 0 auto;
+}
+
+.notification-ceremony-eyebrow {
+    color: color-mix(in srgb, var(--notification-accent) 72%, var(--medieval-muted));
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.notification-ceremony-title {
+    margin: 0.9rem 0 0;
+    font-size: clamp(1.8rem, 3.8vw, 2.7rem);
+    font-weight: 900;
+    line-height: 1.05;
+    color: var(--medieval-text);
+}
+
+.notification-ceremony-message {
+    margin: 1rem auto 0;
+    font-size: 0.98rem;
+    line-height: 1.55;
+    color: var(--medieval-muted);
+    max-width: 360px;
+}
+
+.notification-detail-board {
+    margin: 1rem auto 0;
+    width: 100%;
+    max-width: 400px;
+    padding: 0.95rem;
+    border-radius: 22px;
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 78%, rgba(255, 255, 255, 0.08));
+    background:
+        linear-gradient(180deg, color-mix(in srgb, var(--medieval-panel-strong) 92%, transparent), color-mix(in srgb, var(--medieval-bg) 90%, transparent));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.notification-detail-board-battle {
+    max-width: 430px;
+}
+
+.notification-battle-duel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: 0.65rem;
+    align-items: center;
+    margin-bottom: 0.8rem;
+}
+
+.notification-battle-side,
+.notification-detail-cell {
+    min-width: 0;
+    padding: 0.72rem 0.8rem;
+    border-radius: 16px;
+    background: color-mix(in srgb, var(--medieval-ui-surface-strong) 72%, transparent);
+    border: 1px solid color-mix(in srgb, var(--medieval-border) 72%, rgba(255, 255, 255, 0.06));
+}
+
+.notification-battle-side strong,
+.notification-detail-cell strong {
+    display: block;
+    color: var(--medieval-text);
+    font-size: 0.95rem;
+    line-height: 1.3;
+    word-break: break-word;
+}
+
+.notification-battle-versus {
+    width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--notification-accent);
+    background: color-mix(in srgb, var(--notification-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--notification-accent) 24%, transparent);
+}
+
+.notification-detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+}
+
+.notification-detail-cell-wide {
+    grid-column: 1 / -1;
+}
+
+.notification-detail-label {
+    display: block;
+    margin-bottom: 0.28rem;
+    color: color-mix(in srgb, var(--notification-accent) 68%, var(--medieval-muted));
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.notification-ceremony-result {
+    margin: 1rem auto 0;
+    width: fit-content;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.42rem 0.8rem;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.notification-ceremony-result.is-victory {
+    background: color-mix(in srgb, #1e8f54 22%, transparent);
+    border: 1px solid color-mix(in srgb, #62d993 38%, transparent);
+    color: #cbffe2;
+}
+
+.notification-ceremony-result.is-defeat {
+    background: color-mix(in srgb, #a33434 22%, transparent);
+    border: 1px solid color-mix(in srgb, #ff8f8f 32%, transparent);
+    color: #ffe0e0;
+}
+
+.notification-ceremony-footer {
+    margin-top: 1.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.notification-ceremony-time {
+    color: var(--medieval-muted);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.notification-ceremony-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.notification-ceremony-secondary,
+.notification-ceremony-primary {
+    min-width: 118px;
+    min-height: 46px;
+    border-radius: 999px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-inline: 1.1rem;
+}
+
+.notification-ceremony-primary {
+    border: 0;
+    color: #fff;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--notification-accent) 82%, #ffffff 18%), color-mix(in srgb, var(--notification-accent) 58%, #8f6bff 42%));
+    box-shadow: 0 14px 28px color-mix(in srgb, var(--notification-accent) 26%, transparent);
+}
+
+.notification-ceremony-secondary {
+    border-color: color-mix(in srgb, var(--medieval-border) 80%, var(--notification-accent));
+}
+
+@keyframes notification-stage-enter {
+    from {
+        opacity: 0;
+        transform: translateY(28px) scale(0.94);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes notification-float-a {
+    0%, 100% { transform: translateY(0) rotate(-18deg); }
+    50% { transform: translateY(-12px) rotate(-10deg); }
+}
+
+@keyframes notification-float-b {
+    0%, 100% { transform: translateY(0) rotate(16deg); }
+    50% { transform: translateY(-16px) rotate(24deg); }
+}
+
+@keyframes notification-float-c {
+    0%, 100% { transform: translateY(0) rotate(24deg); }
+    50% { transform: translateY(-10px) rotate(16deg); }
+}
+
+@keyframes notification-sparkle {
+    0%, 100% { opacity: 0.35; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.15); }
+}
+
+@media (max-width: 768px) {
+    .notification-stage {
+        padding: 0.85rem;
+    }
+
+    .notification-ceremony-card {
+        border-radius: 26px;
+        padding: 2.5rem 1.15rem 1.1rem;
+    }
+
+    .notification-ceremony-visual {
+        min-height: 186px;
+    }
+
+    .notification-ceremony-footer {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .notification-ceremony-actions {
+        width: 100%;
+        flex-direction: column-reverse;
+    }
+
+    .notification-ceremony-secondary,
+    .notification-ceremony-primary {
+        width: 100%;
+    }
+
+    .notification-battle-duel,
+    .notification-detail-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .notification-detail-cell-wide {
+        grid-column: auto;
+    }
+}
